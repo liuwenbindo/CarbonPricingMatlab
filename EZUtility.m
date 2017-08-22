@@ -504,7 +504,7 @@ classdef EZUtility
            % using m directly?
            
            m_copy = m;
-           m_copy(i) = m_copy*(i) - delta;
+           m_copy(i) = m_copy(i) - delta;
            minus_utility = obj.utility(m_copy);
            m_copy(i) = m_copy(i) + 2*delta;
            plus_utility = obj.utility(m_copy);
