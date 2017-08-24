@@ -82,81 +82,108 @@ classdef (Abstract) BaseStorageTree
             r= n;
         end
         %method 1
-        function r = set_value(obj, period, values)
+        function set_value(obj, period, values)
             if ismember(period, obj.periods) == 0
-                Error('Not a Valid Period!');              
+                error('Not a Valid Period!');              
             end
             if size(values) ~= size(obj.tree(period))
-                 Error('Shape %s and Shape %s are not aligned.', size(values). size(obj.tree(period)));
+                 error('Shape %s and Shape %s are not aligned.', size(values), size(obj.tree(period)));
             end
-            obj.tree(period) = values;%need refinement
+            % Need refinement, but it works now
+            obj.tree(period) = values;
         end
+        
         %method 2
         function r = is_decision_period(obj, time_period)
             r = ismember(time_period, obj.decision_times);
         end
+        
         %method 3
         function r = is_real_decision_period(obj, time_period)
             r =  ismember(time_period, obj.decision_times(1:end-1));
         end
-        %method 4
-        function r = write_tree(obj, filename, header, delimeter)
+        
+        % method 4
+        % USE "find_path" function in tools
+        function write_tree(obj, filename, header, delimeter)
             real_times = obj.decision_times(1:end-1);
             size = length(obj.tree(real_times(end)));
             output_list = [];
             prev_k = size;
             
             for t = 1:length(real_times)
-                 temp_list = zeros(size*2,1);
-                 k = round( size / length(obj.tree(t)) );
-                 temp_list(k+1:prev_k:length(temp_list)) = obj.tree(t);
+                 temp_list = zeros(size*2, 1);
+                 current_time = real_times(t);
+                 k = round( size / length(obj.tree(current_time)) );
+                 temp_list(k+1 : prev_k : length(temp_list)) = obj.tree(current_time);
+                 % Append temp_list after output_list
                  output_list(:,t) = temp_list;
                  prev_k = k;
             end
          
+            % ??? Question mark here. Correct or not?
             fopen(filename,'wt');
             dlmwrite(filename, header, delimeter);
             dlmwrite(filename, output_list, delimeter,'-append');
         end
-        %method 5
+        
+        % method 5
+        % USE "write_column_csv" function in tools
         function write_column(obj, filename, header, start_year, delimeter)
+            start_year = 2015;
+            delimeter = ';';
+            
             if exists(filename,'file')
                 obj.write_column_existing(filename, header);
             else
                real_times = obj.decision_times(1:end-1);
+               
                years = zeros(length(real_times),1);
+               
                temp_nodes = [];
-               dims = [];
-               for t=1:length(real_times)
-                   dims(t,1) = 2^(t-1);
-               end
-               output_list = cell(dims);
+               
+               tmp_treevalue = values(obj.tree);
+               
+                %dims = [];
+                %for t=1:length(real_times)
+                %    dims(t,1) = 2^(t-1);
+                %end
+                %output_list = cell(dims);
+               output_list = [];
+               
                k = 0;
                for t = 1:length(real_times)
-                   years(t,1) = start_year + real_times(t,1);
-                   temp_value = values(obj.tree, t);
-                   output_list(t) = temp_value;
+                   years(t) = start_year + real_times(t);
+                   curnt_value = tmp_treevalue{t};
+                   %temp_value = values(obj.tree, t);
+                   
                    for n = 1:length(obj.tree(t))                      
-                       temp_nodes = [temp_nodes, k];                                         
+                       temp_nodes = [temp_nodes, k]; 
+                       output_list = [output_list, curnt_value(n)];
                        k = k+1;                
                    end                   
                end
                final_header = ['Year','Node',header];
                fopen(filename,'wt');
                dlmwrite(filename, final_header, delimeter);
-               dlmwrite(filename, output_list, delimeter,'-append'); %index = year, node???
+               dlmwrite(filename, output_list, delimeter,'-append'); % index = [year, node]
             end
         end
-        %method 6
+        
+        % method 6
         function write_column_existing(obj, filename, header, delimeter)
             if nargin < 4 || isempty(delimeter)
                 delimeter = ';';
             end
+            
             output_list = [];
+            tmp_treevalue = values(obj.tree);
+            
              for t = 1:length(real_times)
-                 temp_value = values(obj.tree, t);
-                 output_list = [output_list, temp_value];
+                 curnt_value = tmp_treevalue{t};               
+                 output_list = [output_list, curnt_value];
              end
+             
              fopen(filename,'wt');
              dlmwrite(filename, header, delimeter);
              dlmwrite(filename, output_list, delimeter,'-append');
