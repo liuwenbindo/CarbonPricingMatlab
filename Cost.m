@@ -1,7 +1,13 @@
- classdef (Abstract) Cost
+% ================================= %
+%            Cost.m                 %
+%           Wenbin Liu              %
+%       wl2581@columbia.edu         %
+% ================================= %
+
+classdef (Abstract) Cost
     properties(Access = private)
-        %Python code for metaclass: __metaclass__ = ABCMeta
-        %baseStorageMeta is meta.class object in MATLAB
+        % Python code for metaclass: __metaclass__ = ABCMeta
+        % costMeta is meta.class object in MATLAB
         costMeta = ?Cost;
     end
     
