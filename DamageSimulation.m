@@ -101,6 +101,7 @@ classdef DamageSimulation
             obj.disaster_tail = disaster_tail;
             obj.tip_on = tip_on;
             obj.temp_map = temp_map;
+            % temp_dist_params: 2/3 rows, n cols
             obj.temp_dist_params = temp_dist_params;
             obj.maxh = maxh;
             obj.cons_growth = cons_growth;
@@ -175,6 +176,8 @@ classdef DamageSimulation
 
     
     methods (Access = protected)
+        
+        % USE "write_column_csv" and "append_to_existing" function
         function write_to_file(obj) 
             filename = 'simulated_damages';
             delimeter = ',';
@@ -207,62 +210,105 @@ classdef DamageSimulation
             r = array(order,:);
         end
         
+        
         function r = normal_distribution(obj)
-           if (length(obj.temp_dist_params) == 2)
-               ave = obj.temp_dist_params(:,1);
-               std = obj.temp_dist_params(:,2);
+            
+%         Draw random samples from normal distribution for mapping GHG to temperature for
+%         user-defined distribution parameters.
+     
+           if (size(obj.temp_dist_params, 1) == 2)
+               ave = obj.temp_dist_params(1, :);
+               std = obj.temp_dist_params(2, :);
                n = length(ave);
                for i = 1:n
-                   temperature(i,:) = obj.normal_array(ave(i), std(i), obj.draws); %obj.draws is array like [1, 50]                  
+                   % obj.draws is array like [1, 50]
+                   % every loop formulate one ROW of temperature matrix
+                   temperature(i,:) = obj.normal_array(ave(i), std(i), obj.draws);                   
                end           
                r = exp(temperature);
-           end
-        end
-         
-        function r = gamma_simulation(obj)
-            if (length(obj.temp_dist_params) == 3)
-               k = obj.temp_dist_params(:,1);
-               theta = obj.temp_dist_params(:,2);
-               displace = obj.temp_dist_params(:,3);
-               n = length(k);
-               for i = 1:n
-                   gamma_temp(i,:) = obj.gamma_array(k(i), theta(i), obj.draws); %obj.draws is array like [1, 50]
-                   r(1,:) = gamma_temp(i,:) + displace(i);
-               end         
+           else
+               error('Wrong Numbers of Parameters for Normal Distribution.');
            end
         end
         
+        
+        function r = gamma_simulation(obj)
+            
+%         Draw random samples from gamma distribution for mapping GHG to temperature for
+%         user-defined distribution parameters.
+       
+           if (size(obj.temp_dist_params, 1) == 3)
+               k = obj.temp_dist_params(1,:);
+               theta = obj.temp_dist_params(2,:);
+               displace = obj.temp_dist_params(3,:);
+               n = length(k);
+               for i = 1:n
+                   gamma_temp(i,:) = obj.gamma_array(k(i), theta(i), obj.draws); %obj.draws is array like [1, 50]
+                   r(i,:) = gamma_temp(i,:) + displace(i);
+               end
+           else
+               error('Wrong Numbers of Parameters for Gamma Distribution.');
+           end
+        end
+        
+        
         function r = generate_parameter(mean, stdev, times)
-            para_list = [];
+            para_list = zeros(1, times);
             for i = 1:times
                 temp = normrnd(mean, stdev);
-                para_list = [para_list, temp];
+                para_list(i) = temp;
             end
             r = para_list;            
         end
         
-        function r = pindyck_impact_simulation(obj)
-            pindyck_impact_k = 4.5;
-            pindyck_impact_theta = 21341.0;
-            pindyck_impact_displace = -0.0000746;
-            r = obj.gamma_array(pindyck_impact_k, pindyck_impact_theta, obj.draws) + ...
-                 pindyck_impact_displace;           
+        
+        function pindyck_simulation(obj)
+            
+%         Draw random samples for mapping GHG to temperature based on Pindyck. The `pindyck_impact_k`
+%         is the shape parameter from Pyndyck damage function, `pindyck_impact_theta` the scale parameter
+%         from Pyndyck damage function, and `pindyck_impact_displace` the displacement parameter from Pyndyck
+%         damage function.
+       
+        pindyck_temp_k = [2.81, 4.6134, 6.14];
+        pindyck_temp_theta = [1.6667, 1.5974, 1.53139];
+        pindyck_temp_displace = [-0.25, -0.5, -1.0];
+        
+        pindyck_tmp = zeros(3, obj.draws);
+        r = zeros(3, obj.draws);
+        
+            for i = 1:3
+                pindyck_tmp(i,:) = obj.gamma_array(pindyck_temp_k(i), pindyck_temp_theta(i), obj.draws);
+                r(i,:) = pindyck_tmp(i,:) + pindyck_temp_displace(i);
+            end
+        
         end
         
+        
         function r = ww_simulation(obj)
+        % Draw random samples for mapping GHG to temperature based on Wagner-Weitzman.
+        
             ww_temp_ave = [0.573, 1.148, 1.563];
             ww_temp_stddev = [0.462, 0.441, 0.432];
+            
+            temperature = zeros(3,obj.draws);
+            
             for i = 1:3
                 temperature(i,:) = obj.normal_array(ww_temp_ave(i), ww_temp_stddev(i), obj.draws);
             end      
             r = exp(temperature);
         end
         
+        
         function r = rb_simulation(obj)
+        % Draw random samples for mapping GHG to temperature based on Roe-Baker.
+        
             rb_fbar = [0.75233, 0.844652, 0.858332];
             rb_sigf = [0.049921, 0.033055, 0.042408];
             rb_theta = [2.304627, 3.333599, 2.356967];
     
+            temperature = zeros(3,obj.draws);
+            item_to_compare = zeros(3,obj.draws);
+            
             for i = 1:3
                 temperature(i,:) = obj.normal_array(rb_fbar(i), rb_sigf(i), obj.draws);
                 item_to_compare(i,:) = (1 / ( 1 - temperature(i,:))) - rb_theta(i);
@@ -270,33 +316,69 @@ classdef DamageSimulation
             r = max(0, item_to_compare);
         end
         
+        
+        function r = pindyck_impact_simulation(obj)            
+        % Pindyck gamma distribution mapping temperature into damages.
+        % get the gamma in loss function
+            pindyck_impact_k = 4.5;
+            pindyck_impact_theta = 21341.0;
+            pindyck_impact_displace = -0.0000746;
+            
+            r = obj.gamma_array(pindyck_impact_k, pindyck_impact_theta, obj.draws) + ...
+                 pindyck_impact_displace;           
+        end
+        
+        
         function r = disaster_simulation(obj)
+            
+%         Simulating disaster random variable, allowing for a tipping point to occur
+%         with a given probability, leading to a disaster and a `disaster_tail` impact on consumption.
+            
             dim_unif = [obj.draws, obj.tree.num_periods];
             r = obj.uniform_array(dim_unif);
         end
         
+        
         function r = disaster_cons_simulation(obj)
-            r = obj.gamma_array(1.0, obj.disaster_tail, obj.draws); %obj.disaster_tail
+            
+        % Simulates consumption conditional on disaster, based on the parameter disaster_tail."""
+        % get the tp_damage in the article which is drawed from a gamma distri with alpha = 1 and beta = disaster_tail
+            
+            r = obj.gamma_array(1.0, obj.disaster_tail, obj.draws);
         end
          
-        function r = interpolation_of_temp(obj, temperature)
+        
+        function r = interpolation_of_temp(obj, temperature)           
+        % For every temp in each period, modify it using a coff regards to the current period (using a smoothing method.)
+            r = zeros(size(temperature));
+            
+             % modify the temp using a exp coefficient (need the new article to get it)
             for i = 1:size(temperature,1)
-                r(i,:) = temperature(i,:) * 2.0 * (1 -  0.5^(obj.tree.decision_times(i+1)/obj.maxh));
+                for n = 1:size(temperature,2)
+                r(i,n) = temperature(i,n) * 2.0 * (1 -  0.5^(obj.tree.decision_times(i+1)/obj.maxh));
+                end
             end
         end
         
+        
         function r = economic_impact_of_temp(obj, temperature)
+        % Economic impact of temperatures, Pindyck [2009].
+        
             impact = obj.pindyck_impact_simulation();
             for i = 1:length(impact)
-                term1(i,:) = -2.0 * impact(i,:) .* temperature(i,:) * obj.maxh / log(0.5); 
-                term2(i,:) = obj.cons_growth - 2.0 .* impact(i,:) .* temperature(i,:) * obj.tree.decision_times(i+1);
-                term3(i,:) = 2.0 * impact(i,:) .* temperature(i,:) * 0.5^(obj.tree.decision_times(i+1)/obj.maxh)...
+                term1(i,:) = -2.0 * impact(i) .* temperature(i,:) * obj.maxh / log(0.5); 
+                term2(i,:) = obj.cons_growth - 2.0 * impact(i) .* temperature(i,:) * obj.tree.decision_times(i+1);
+                term3(i,:) = 2.0 * impact(i) * temperature(i,:) * 0.5^(obj.tree.decision_times(i+1)/obj.maxh)...
                              * obj.maxh / log(0.5);
             end
             r = exp(term1 + term2 + term3);
         end
         
-        function r = tipping_point_update(obj, tmp, consump, peak_temp_interval)
+        
+        function r = tipping_point_update(obj, tmp, consump, peak_temp_interval)            
+%         Determine whether a tipping point has occurred, if so reduce consumption for
+%         all periods after this date.
+     
              if nargin < 4 || isempty(peak_temp_interval)
                 peak_temp_interval = 30.0;
              end
@@ -305,8 +387,10 @@ classdef DamageSimulation
              disaster = obj.disaster_simulation();
              disaster_cons = obj.disaster_cons_simulation();
              period_lengths = obj.tree.decision_times(2:end) - obj.tree.decision_times(1:end-1);
+             
              tmp_scale = max(obj.peak_temp,tmp);
-             ave_prob_of_survival = 1 - (tmp/tmp_scale).^2;
+             ave_prob_of_survival = 1 - (tmp./tmp_scale).^2;
+             % formula (28) prob(tb)=1-[1-(tmp/tmp_scale)^2]^(period_len/peak_interval)
              prob_of_survival = (ave_prob_of_survival).^(period_lengths / peak_temp_interval);
              
              res = prob_of_survival < disaster;
