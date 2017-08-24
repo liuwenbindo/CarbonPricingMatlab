@@ -106,6 +106,7 @@ classdef DamageSimulation
             obj.maxh = maxh;
             obj.cons_growth = cons_growth;
             obj.d = [];
+            obj.draws = [1 10];
         end
         
        
@@ -134,8 +135,12 @@ classdef DamageSimulation
             end
 
             dnum = length(obj.ghg_levels);
-            obj.draws = draws;
-            obj.peak_cons = exp(obj.cons_growth * obj.tree.decision_times(2:end));
+            
+            % Will do the setting the other way
+            %obj.draws = draws;
+            
+            % Useless property
+            %obj.peak_cons = exp(obj.cons_growth * obj.tree.decision_times(2:end));
 
             if obj.temp_map == 0
                 temperature = obj.pindyck_simulation();
@@ -172,10 +177,6 @@ classdef DamageSimulation
             
             r = obj.d;
         end
-    end
-
-    
-    methods (Access = protected)
         
         % USE "write_column_csv" and "append_to_existing" function
         function write_to_file(obj) 
@@ -192,15 +193,15 @@ classdef DamageSimulation
         end
         
         %dimension here is an array, like [1,5]
-        function r = gamma_array(shape, rate, dimension)
+        function r = gamma_array(obj, shape, rate, dimension)
             r = gamrnd(shape, 1/rate, dimension);
         end
         
-        function r = normal_array(mean, stdev, dimension)
+        function r = normal_array(obj, mean, stdev, dimension)
             r = normrnd(mean, stdev, dimension);
         end
         
-        function r = uniform_array(dimension)
+        function r = uniform_array(obj, dimension)
             r = unifrnd(0,1,dimension);
         end
         
@@ -220,6 +221,8 @@ classdef DamageSimulation
                ave = obj.temp_dist_params(1, :);
                std = obj.temp_dist_params(2, :);
                n = length(ave);
+               temperature = zeros(n, obj.draws(2));
+               
                for i = 1:n
                    % obj.draws is array like [1, 50]
                    % every loop formulate one ROW of temperature matrix
@@ -262,7 +265,7 @@ classdef DamageSimulation
         end
         
         
-        function pindyck_simulation(obj)
+        function r = pindyck_simulation(obj)
             
 %         Draw random samples for mapping GHG to temperature based on Pindyck. The `pindyck_impact_k`
 %         is the shape parameter from Pyndyck damage function, `pindyck_impact_theta` the scale parameter
@@ -272,9 +275,6 @@ classdef DamageSimulation
         pindyck_temp_k = [2.81, 4.6134, 6.14];
         pindyck_temp_theta = [1.6667, 1.5974, 1.53139];
         pindyck_temp_displace = [-0.25, -0.5, -1.0];
-        
-        pindyck_tmp = zeros(3, obj.draws);
-        r = zeros(3, obj.draws);
         
             for i = 1:3
                 pindyck_tmp(i,:) = obj.gamma_array(pindyck_temp_k(i), pindyck_temp_theta(i), obj.draws);
@@ -289,8 +289,6 @@ classdef DamageSimulation
         
             ww_temp_ave = [0.573, 1.148, 1.563];
             ww_temp_stddev = [0.462, 0.441, 0.432];
-            
-            temperature = zeros(3,obj.draws);
             
             for i = 1:3
                 temperature(i,:) = obj.normal_array(ww_temp_ave(i), ww_temp_stddev(i), obj.draws);
