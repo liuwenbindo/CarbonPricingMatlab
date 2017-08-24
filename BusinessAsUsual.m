@@ -24,15 +24,15 @@ classdef (Abstract) BusinessAsUsual
 %     emission_to_bau : float
 %         constant for converting GHG to emission??
        
-    properties(Access = private)
-        %Python code for metaclass: __metaclass__ = ABCMeta
-        %bauMeta is meta.class object in MATLAB
+%     properties(Access = private)
+%         
+%     end
+ 
+    properties (Access = private)
+        % Python code for metaclass: __metaclass__ = ABCMeta
+        % bauMeta is meta.class object in MATLAB
         bauMeta = ?BusinessAsUsual;
-    end
-    
-    properties
-        ghg_start
-        ghg_end
+        
         emission_by_decisions
         emission_per_period
         emission_to_ghg
@@ -40,27 +40,22 @@ classdef (Abstract) BusinessAsUsual
         bau_path
     end
     
-    methods (Abstract = true)
-        r1 = cost(obj);
-        r2 = price(obj);
+    properties 
+        ghg_start
+        ghg_end
     end
     
+    methods (Abstract = true)
+        r = emission_by_time(obj);
+    end
+          
     methods
         % Constructor
-        function obj = BusinessAsUsual(ghg_start, ghg_end)
+        function obj = BusinessAsUsual(ghg_start, ghg_end)            
             obj.ghg_start = ghg_start;
-            obj.ghg_end = ghg_end;
-            obj.emission_by_decisions
-            obj.emission_per_period = NaN;
-            obj.emission_to_ghg = NaN;
-            obj.emission_to_bau = NaN;
-            obj.bau_path = NaN;
+            obj.ghg_end = ghg_end;                      
         end
-        
-        % Abstract Method
-        function emission_by_time(obj)           
-        end
+       
     end
-    
-    
+       
 end
