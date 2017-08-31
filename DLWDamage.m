@@ -54,10 +54,6 @@ classdef DLWDamage < Damage
             obj.cum_forcings = value;
         end
         
-    end
-       
-    
-    methods(Access = protected) 
         
         function recombine_nodes(obj)
             nperiods = obj.tree.num_periods;
@@ -65,23 +61,24 @@ classdef DLWDamage < Damage
             new_state = {};
             
             % Shallow copy in original Python script, should I keep it?
-            temp_prob = obj.tree.final_states_prob;
+            temp_prob = obj.tree.final_state_probs;
+            obj.d_rcomb = obj.d;
             
-            for old_state = 1:tree.num_final_states
+            for old_state = 1:obj.tree.num_final_states
                 temp = old_state;
                 n = nperiods-2; % last period before recombining
                 d_class = 0;
                 
                 while n >= 0
-                    if temp >= 2^n % modify the lower half of all final states
-					temp = temp - 2^n;
-					d_class = d_class + 1;
+                    if temp-1 >= 2^n % modify the lower half of all final states
+                        temp = temp - 2^n;
+                        d_class = d_class + 1;
                     end
                     n = n - 1;                    
                 end
                 sum_class(d_class + 1) = sum_class(d_class + 1) + 1;
                 
-                new_state{d_class + 1}(sum_class(d_class + 1)) = old_state;
+                new_state{d_class + 1}(sum_class(d_class + 1)) = old_state-1;
             end
                        
 %                 the new_state for our model should be something like
@@ -96,12 +93,20 @@ classdef DLWDamage < Damage
             sum_nodes = [];
             sum_nodes(1) = 0;
             sum_nodes(2:length(sum_class)+1) = cumsum(sum_class);
+%             sum_class
+%             sum_nodes
+%             new_state
+%             new_state{2}
+%             new_state{3}
+%             new_state{4}
+%             new_state{5}
+                       
+            prob_sum = zeros(1, length(sum_nodes)-1);
+            for i = 1:length(sum_nodes)-1             
+                prob_sum(i) = sum(obj.tree.final_state_probs(sum_nodes(i)+1 : (sum_nodes(i+1))));
+            end     
             
-            for i = 1:length(sum_nodes)-1
-                prob_sum(i) = sum(obj.tree.final_states_prob(sum_nodes(i):sum_nodes(i+1)-1));
-            end
-     
-%             sum_nodes: [ 0, 16, 24, 28, 30, 31, 32]
+%             sum_nodes: [ 0, 1, 6, 16, 26, 31, 32]
 %             prob_sum: sums up the probabilities of final states [0-15, 16-23, 24-27, 28-29, 30, 31]
 
              for period = 1:nperiods
@@ -109,20 +114,20 @@ classdef DLWDamage < Damage
                      d_sum = zeros(1, nperiods);
                      old_state = 1;
                      
-                     for d_class = 1:nperiods
-                         d_sum(d_class) = sum(obj.tree.final_states_prob(old_state:old_state+sum_class(d_class)) ...
-						 			 .* obj.d_rcomb(old_state:old_state+sum_class(d_class), period, k));
-                         old_state = old_state + sum_class(d_class);
-                         
-                         tmp_tree = obj.tree;
-                         tmp_tree.final_states_prob(new_state(d_class, 1:sum_class(d_class))) = temp_prob(1);
+                     for d_class = 1 : nperiods
+                          d_sum(d_class) = sum( obj.tree.final_state_probs( old_state : old_state+sum_class(d_class)-1 )); %...
+						 			 %.* obj.d_rcomb(old_state:old_state+sum_class(d_class), period, k) );
+                          old_state = old_state + sum_class(d_class);
+                                         
+                          tmp_tree = obj.tree;
+                          tmp_tree.final_state_probs( new_state{d_class}(1:sum_class(d_class))+1 ) = temp_prob(1);
                          % USE Set method (Definition in base class)
-                         obj.tree = tmp_tree;    
+                          obj.tree = tmp_tree;    
                      end
                      
                      for d_class = 1:nperiods                                              
                          % USE Set method
-                         obj.d_rcomb(k, new_state(d_class, 1:sum_class(class)), period) = d_sum(d_class) / prob_sum(d_class);
+                         obj.d_rcomb(new_state{d_class}(1:sum_class(d_class))+1, period, k) = d_sum(d_class) / prob_sum(d_class);
                          
                          % Alternative way:
                          % tmp_d_rcomb = obj.d_rcomb;
@@ -133,11 +138,11 @@ classdef DLWDamage < Damage
              end
              
              % After final_states_prob being updated
-             last_num_elements = length(obj.tree.final_states_prob);
+             last_num_elements = length(obj.tree.final_state_probs);
              
              % USE Set method
              tmp_tree = obj.tree;            
-             tmp_tree.node_prob(end-(last_num_elements-1):end) = obj.tree.final_states_prob;
+             tmp_tree.all_node_probs(end-(last_num_elements-1):end) = obj.tree.final_state_probs;
              obj.tree = tmp_tree;
              
              for p =2:nperiods-1
@@ -148,11 +153,13 @@ classdef DLWDamage < Damage
                  
                  % look into all the nodes for the period
                  for node = nodes(1):nodes(2) 
-                    [worst_end_state, best_end_state] = obj.tree.reachable_end_states(node, p); % determine reachable final states
+                    end_states = obj.tree.reachable_end_state(node); % determine reachable final states
+                    worst_end_state = end_states(1);
+                    best_end_state = end_states(2);
                     
                     % USE Set method
                     tmp_tree = obj.tree;
-                    tmp_tree.node_prob(node) = sum(obj.tree.final_states_prob(worst_end_state:best_end_state));
+                    tmp_tree.all_node_probs(node+1) = sum( obj.tree.final_state_probs(worst_end_state+1:best_end_state+1) );
                     obj.tree = tmp_tree;
                  end
                  
@@ -326,7 +333,8 @@ classdef DLWDamage < Damage
               for n = 2:obj.tree.num_periods
                   node = obj.tree.get_node(n, 0);
                   % return the forcing on the node
-                  obj.cum_forcings(n-1, i) = Forcing.forcing_at_node(mitigation(i), node, obj.tree, obj.bau, obj.subinterval_len);												
+                  forcingobj = Forcing();
+                  obj.cum_forcings(n-1, i) = forcingobj.forcing_at_node(mitigation(i), node, obj.tree, obj.bau, obj.subinterval_len);												
               end
             end
         end
@@ -402,7 +410,8 @@ classdef DLWDamage < Damage
         
         
         function r = ghg_level_node(obj, m, node)
-            r = Forcing.ghg_level_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len);
+            forcingobj = Forcing();
+            r = forcingobj.ghg_level_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len);
         end
         
         
@@ -513,7 +522,8 @@ classdef DLWDamage < Damage
             
             period = obj.tree.get_period(node);
             % After Forcing object
-            [forcing, ghg_level] = Forcing.forcing_and_ghg_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len, 'both');
+            forcingobj = Forcing();
+            [forcing, ghg_level] = forcingobj.forcing_and_ghg_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len, 'both');
             force_mitigation = obj.forcing_based_mitigation(forcing, period);
             ghg_extension = 1.0 / (1 + exp(0.05 * (ghg_level-200)));
             

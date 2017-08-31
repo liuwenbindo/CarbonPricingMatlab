@@ -11,23 +11,30 @@
 classdef TreeModel
     properties
         decision_times = []
+        num_periods
+        num_decision_nodes
+        num_final_states
+        final_state_probs = []
+        all_node_probs = []
     end
+    
     properties(Constant)
       prob_scale = 1.0
     end
-    properties(Dependent)
-       num_periods
-       num_decision_nodes
-       num_final_states
-       final_state_probs = []
-       all_node_probs = []
-    end
+    
     methods
         %constructor
         function obj = TreeModel(array)
             obj.decision_times = array;
         end
         
+        % Set method for all_node_probs
+        
+        function obj = set.all_node_probs(obj, value)
+            obj.all_node_probs = value;
+        end
+      
+       
         %dependent property 1: num_periods
         function r = get.num_periods(obj)
             r = length(obj.decision_times)-1;
