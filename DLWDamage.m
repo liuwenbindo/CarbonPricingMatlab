@@ -308,6 +308,7 @@ classdef DLWDamage < Damage
   
         end
         
+        
         function forcing_init(obj)
             
         % Initialize `Forcing` object and cum_forcings used in calculating the force mitigation up to a node.
