@@ -109,8 +109,16 @@ classdef DamageSimulation
             obj.draws = [1 10];
         end
         
+        function obj = set.draws(obj, value)
+            obj.draws = value;           
+        end
        
+        function obj = set.d(obj, value)
+            obj.d = value;           
+        end
+        
         function r = simulate(obj, draws, write_to_file)
+            
 %         Create damage function values in 'p-period' version of the Summers - Zeckhauser model.
 % 
 %         Parameters
@@ -134,10 +142,10 @@ classdef DamageSimulation
                 write_to_file = true;
             end
 
+            % Will use in multi-processing
             dnum = length(obj.ghg_levels);
-            
-            % Will do the setting the other way
-            %obj.draws = draws;
+                    
+            obj.draws = draws;
             
             % Useless property
             %obj.peak_cons = exp(obj.cons_growth * obj.tree.decision_times(2:end));
@@ -165,16 +173,19 @@ classdef DamageSimulation
             % from the paths, but I don't have the permission of doing so.
             % Can you help me test this code?
             
-            job = batch(@obj.run_path, 1, {temperature}, 'Pool', dnum);
-            wait(job);
-            load(job);
-            r = fetchOutputs(job); % Get results into a cell array
-            obj.d = r{1};          % Save the result
+            % Multi-processing
+%             job = batch(@obj.run_path, 1, {temperature}, 'Pool', dnum);
+%             wait(job);
+%             load(job);
+%             r = fetchOutputs(job); % Get results into a cell array
+%             obj.d = r{1};          % Save the result
+%             
+%              if write_to_file
+%                  obj.write_to_file();
+%              end
             
-            if write_to_file
-                obj.write_to_file();
-            end
-            
+            % Without multi-processing
+            obj.d = obj.run_path(temperature);
             r = obj.d;
         end
         
@@ -363,7 +374,7 @@ classdef DamageSimulation
         % Economic impact of temperatures, Pindyck [2009].
         
             impact = obj.pindyck_impact_simulation();
-            for i = 1:length(impact)
+            for i = 1:size(impact,1)
                 term1(i,:) = -2.0 * impact(i) .* temperature(i,:) * obj.maxh / log(0.5); 
                 term2(i,:) = obj.cons_growth - 2.0 * impact(i) .* temperature(i,:) * obj.tree.decision_times(i+1);
                 term3(i,:) = 2.0 * impact(i) * temperature(i,:) * 0.5^(obj.tree.decision_times(i+1)/obj.maxh)...
@@ -373,7 +384,8 @@ classdef DamageSimulation
         end
         
         
-        function r = tipping_point_update(obj, tmp, consump, peak_temp_interval)            
+        function r = tipping_point_update(obj, tmp, consump, peak_temp_interval)
+            
 %         Determine whether a tipping point has occurred, if so reduce consumption for
 %         all periods after this date.
      
@@ -382,14 +394,22 @@ classdef DamageSimulation
              end
             
              draws = size(tmp, 1);
+             
              disaster = obj.disaster_simulation();
              disaster_cons = obj.disaster_cons_simulation();
              period_lengths = obj.tree.decision_times(2:end) - obj.tree.decision_times(1:end-1);
              
-             tmp_scale = max(obj.peak_temp,tmp);
+             tmp_scale = max(obj.peak_temp, tmp);           
              ave_prob_of_survival = 1 - (tmp./tmp_scale).^2;
+             
+             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+             % Mismatch dimensions
+             %
              % formula (28) prob(tb)=1-[1-(tmp/tmp_scale)^2]^(period_len/peak_interval)
              prob_of_survival = (ave_prob_of_survival).^(period_lengths / peak_temp_interval);
+             %
+             %
+             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
              
              res = prob_of_survival < disaster;
              [rows, cols] = find(res); %Find the rows and cols of nonzero elements
@@ -418,6 +438,7 @@ classdef DamageSimulation
         end
         
         function r = run_path(obj, temperature)
+            
 %         Calculate the distribution of damage for specific GHG-path. Implementation of
 %         the temperature and economic impacts from Pindyck [2012] page 6.
 %         
@@ -427,8 +448,8 @@ classdef DamageSimulation
 
         % d_temp is d in python code
         d_temp = zeros(obj.tree.num_final_states, obj.tree.num_periods);
-        tmp = obj.interpolation_of_temp(temperature);
-        consump = obj.economic_impact_of_temp(temperature);
+        tmp = obj.interpolation_of_temp(temperature);   
+        consump = obj.economic_impact_of_temp(temperature);        
         peak_cons = exp(obj.cons_growth * obj.tree.decision_times(2:end));
         
         % adding tipping points

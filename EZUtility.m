@@ -17,7 +17,37 @@ classdef EZUtility
        penalty_scale
    end
    
-   methods (Access = protected)
+   methods
+       
+       % Constructor
+       function r = EZUtility (obj, tree, damage, cost, period_len, eis, ra, time_pref, add_penalty_cost,...
+               max_penalty, penalty_scale)
+           % Set default values of input arguments
+           if nargin == 5
+                eis = 0.9;
+                ra = 7.0;
+                time_pref = 0.005;
+                add_penalty_cost = false;
+                max_penalty = 0.0;
+                penalty_scale = 1.0;
+           end
+           
+           obj.tree = tree;
+           obj.damage = damage;
+           obj.cost = cost;
+           obj.period_len = period_len;
+           obj.decision_times = tree.decision_times;
+           obj.cons_growth = damage.cons_growth;
+           obj.growth_term = 1.0 + obj.cons_growth;
+           obj.r = 1.0 - 1.0/eis;
+           obj.a = 1.0 - ra;
+           obj.b = (1.0 - time_pref)^period_len;
+           obj.potential_cons =  ones(size(obj.tree.decision_times)) + obj.cons_growth;
+           obj.add_penalty_cost = add_penalty_cost;
+           obj.max_penalty = max_penalty;
+           obj.penalty_scale = penalty_scale;          
+       end
+       
        
        function end_period_utility(obj, m, utility_tree, cons_tree, cost_tree)
            % Calculate the terminal utility
@@ -38,6 +68,7 @@ classdef EZUtility
            utility_tree.set_value(utility_tree.last_period, (1.0 - obj.b)^(1.0 / obj.r) .* cons_tree.last...
                .* continuation);
        end
+       
        
        function end_period_marginal_utility(obj, mu_tree_0, mu_tree_1, ce_tree, utility_tree, cons_tree)
            % Calculate the terminal marginal utility
@@ -84,6 +115,7 @@ classdef EZUtility
            end
            r = cert_equiv;
        end
+       
        
        function [r1_u, r2_period] = utility_generator(obj, m, utility_tree, cons_tree, cost_tree, ce_tree, cons_adj)
            
@@ -153,6 +185,7 @@ classdef EZUtility
             end
        end
        
+       
        function [r0, r1_utility, r2_cons, r3_cost, r4_ce] = utility(obj, m, return_trees)
            
 %         Calculating utility for the specific mitigation decisions `m`.
@@ -201,6 +234,7 @@ classdef EZUtility
            end
            r0 = utility_tree(1);          
        end
+       
        
        function [r0, r1_utility, r2_cons, r3_cost, r4_ce] = adjusted_utility(obj, m, period_cons_eps, node_cons_eps, final_cons_eps, first_period_consadj, return_trees)
            
@@ -331,6 +365,7 @@ classdef EZUtility
 		rvalue = t1 * t2 * t3 * t5;
        end
        
+       
        function rvalue = mu_2(obj, cons, prev_cons, ce_term)
 		% Marginal utility with respect to last period consumption.
 		t1 = (1.0-obj.b) * obj.b * prev_cons^(obj.r-1.0);
@@ -339,6 +374,7 @@ classdef EZUtility
 		rvalue = t1 * t2;
        end
 
+       
        function [r1, r2, r3] = period_marginal_utility(obj, prev_mu_0, prev_mu_1, m, period, utility_tree, cons_tree, ce_tree)
            % Marginal utility for each node in a period.
            damage_period = utility_tree.between_decision_times(period);
@@ -380,48 +416,7 @@ classdef EZUtility
            end  
        end
        
-  
-      
-       
-       
-   end
-   
-   methods(Access = private)
-       
-       % Constructor
-       function r = EZUtility (obj, tree, damage, cost, period_len, eis, ra, time_pref, add_penalty_cost,...
-               max_penalty, penalty_scale)
-           % Set default values of input arguments
-           if nargin == 5
-                eis = 0.9;
-                ra = 7.0;
-                time_pref = 0.005;
-                add_penalty_cost = false;
-                max_penalty = 0.0;
-                penalty_scale = 1.0;
-           end
-           
-           obj.tree = tree;
-           obj.damage = damage;
-           obj.cost = cost;
-           obj.period_len = period_len;
-           obj.decision_times = tree.decision_times;
-           obj.cons_growth = damage.cons_growth;
-           obj.growth_term = 1.0 + obj.cons_growth;
-           obj.r = 1.0 - 1.0/eis;
-           obj.a = 1.0 - ra;
-           obj.b = (1.0 - time_pref)^period_len;
-           obj.potential_cons =  ones(size(obj.tree.decision_times)) + obj.cons_growth;
-           obj.add_penalty_cost = add_penalty_cost;
-           obj.max_penalty = max_penalty;
-           obj.penalty_scale = penalty_scale;          
-       end
-      
-   end
-
-   % Public methods
-   methods 
- 
+    
        function [r1, r2, r3] = marginal_utlity(obj, m, utility_tree, cons_tree, cost_tree, ce_tree)
            
 %      	Calculating marginal utility for sensitivity analysis, e.g. in the SSC decomposition.
@@ -478,8 +473,9 @@ classdef EZUtility
                 r2 = mu_tree_1;
                 r3 = mu_tree_2;
             end
-        end
+       end
        
+        
        function r = partial_grad(obj, m, i, delta)
            
 %       Calculate the ith element of the gradient vector.
@@ -500,8 +496,8 @@ classdef EZUtility
                delta = 1e-8;
            end
            
-           % m_copy = m.copy(); % Why do we need to shallow copy instead of
-           % using m directly?
+           % m_copy = m.copy(); 
+           % Why do we need to shallow copy instead of using m directly?
            
            m_copy = m;
            m_copy(i) = m_copy(i) - delta;
