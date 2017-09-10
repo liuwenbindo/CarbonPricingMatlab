@@ -17,6 +17,7 @@ classdef EZUtility
        penalty_scale
    end
    
+   
    methods
        
        % Constructor
@@ -42,7 +43,7 @@ classdef EZUtility
            obj.r = 1.0 - 1.0/eis;
            obj.a = 1.0 - ra;
            obj.b = (1.0 - time_pref)^period_len;
-           obj.potential_cons =  ones(size(obj.tree.decision_times)) + obj.cons_growth;
+           obj.potential_cons =  (ones(size(obj.tree.decision_times)) + obj.cons_growth) .^ (obj.tree.decision_times);
            obj.add_penalty_cost = add_penalty_cost;
            obj.max_penalty = max_penalty;
            obj.penalty_scale = penalty_scale;          
@@ -62,11 +63,11 @@ classdef EZUtility
            continuation = (1.0 / (1.0 - obj.b * (obj.growth_term^obj.r)))^(1.0 / obj.r);
            
            cost_tree.set_value(cost_tree.last_period, period_cost);
-           period_consumption = obj.potential_cons(end) .* (1.0 - period_damage);
+           period_consumption = obj.potential_cons(end) * (1.0 - period_damage);
            period_consumption(period_consumption <= 0) = 1e-18;
            cons_tree.set_value(cons_tree.last_period, period_consumption);
-           utility_tree.set_value(utility_tree.last_period, (1.0 - obj.b)^(1.0 / obj.r) .* cons_tree.last...
-               .* continuation);
+           utility_tree.set_value(utility_tree.last_period, (1.0 - obj.b)^(1.0 / obj.r) * cons_tree.last ...
+               * continuation);
        end
        
        

@@ -11,8 +11,7 @@ classdef DLWDamage < Damage
         emit_pct
         damage_coefs
     end
-    
-    
+        
     methods 
         
         % Constructor
@@ -29,33 +28,42 @@ classdef DLWDamage < Damage
             obj.damage_coefs = NaN;
         end
         
+        
+        % Get/Set Methods for Properties       
         % Get method of property d_rcomb
         function r = get.d_rcomb(obj)
             r = obj.d;  
-        end
-                
+        end                
         % Set method of property d_rcomb
         function obj = set.d_rcomb(obj,value)
             obj.d_rcomb = value;
-        end
-        
+        end        
         % Set method of property emit_pct
         function obj = set.emit_pct(obj,value)
             obj.emit_pct = value;
-        end
-        
+        end        
         % Set method of property d
         function obj = set.d(obj,value)
             obj.d = value;
-        end
-                  
-         % Set method of property cum_forcings
+        end                  
+        % Set method of property cum_forcings
         function obj = set.cum_forcings(obj,value)
             obj.cum_forcings = value;
+        end
+        % Set method of property damage_coefs
+        function obj = set.damage_coefs(obj,value)
+            obj.damage_coefs = value;
         end
         
         
         function recombine_nodes(obj)
+            
+%       Creating damage coefficients for recombining tree. The state reached by an up-down move is
+% 		separate from a down-up move because in general the two paths will lead to different degrees of 
+% 		mitigation and therefore of GHG level. A 'recombining' tree is one in which the movement from 
+% 		one state to the next through time is nonetheless such that an up move followed by a down move 
+% 		leads to the same fragility.
+                        
             nperiods = obj.tree.num_periods;
             sum_class = zeros(1, nperiods);
             new_state = {};
@@ -70,7 +78,7 @@ classdef DLWDamage < Damage
                 d_class = 0;
                 
                 while n >= 0
-                    if temp-1 >= 2^n % modify the lower half of all final states
+                    if temp - 1 >= 2^n % modify the lower half of all final states
                         temp = temp - 2^n;
                         d_class = d_class + 1;
                     end
@@ -81,52 +89,55 @@ classdef DLWDamage < Damage
                 new_state{d_class + 1}(sum_class(d_class + 1)) = old_state-1;
             end
                        
-%                 the new_state for our model should be something like
-%                  0
-%                  1  2  4  8  16
-%                  3  5  6  9  10 12 17 18 20 24
-%                  7 11  13  14 19 21 22 25 26 28
-%                  15 23 27 29 30
-%                  31
-%                 the sum_class should be [1 5 10 10 5 1]
-                
+%           new_state:
+%           0
+%           1  2  4  8  16
+%           3  5  6  9  10 12 17 18 20 24
+%           7 11  13  14 19 21 22 25 26 28
+%           15 23 27 29 30
+%           31
+%           sum_class: [1 5 10 10 5 1]
+%           sum_nodes: [ 0, 1, 6, 16, 26, 31, 32]
+%           prob_sum: sums up the probabilities of final states partitioned by sum_nodes
+
             sum_nodes = [];
             sum_nodes(1) = 0;
             sum_nodes(2:length(sum_class)+1) = cumsum(sum_class);
-%             sum_class
-%             sum_nodes
-%             new_state
-%             new_state{2}
-%             new_state{3}
-%             new_state{4}
-%             new_state{5}
-                       
+            
             prob_sum = zeros(1, length(sum_nodes)-1);
             for i = 1:length(sum_nodes)-1             
                 prob_sum(i) = sum(obj.tree.final_state_probs(sum_nodes(i)+1 : (sum_nodes(i+1))));
             end     
             
-%             sum_nodes: [ 0, 1, 6, 16, 26, 31, 32]
-%             prob_sum: sums up the probabilities of final states [0-15, 16-23, 24-27, 28-29, 30, 31]
+%           Please uncomment below for testing           
+%              sum_class
+%              sum_nodes
+%              new_state
+%              new_state{2}
+%              new_state{3}
+%              new_state{4}
+%              new_state{5}
+%              prob_sum
 
-             for period = 1:nperiods
-                 for k = 1:obj.dnum
-                     d_sum = zeros(1, nperiods);
-                     old_state = 1;
+             for period = 1:nperiods   %look into each period
+                 for k = 1:obj.dnum   %look into each simulated scenario
+                     d_sum = zeros(1, nperiods);    %store the probability-weighted sum of the simulated damage for each category
+                     old_state = 1;    %direct to the first node in the the category set, signal
                      
                      for d_class = 1 : nperiods
-                          d_sum(d_class) = sum( obj.tree.final_state_probs( old_state : old_state+sum_class(d_class)-1 )); %...
-						 			 %.* obj.d_rcomb(old_state:old_state+sum_class(d_class), period, k) );
+                          d_sum(d_class) = sum( obj.tree.final_state_probs( old_state : old_state+sum_class(d_class)-1 ) ...
+						 			 .* obj.d_rcomb(old_state : old_state+sum_class(d_class)-1, period, k) );
                           old_state = old_state + sum_class(d_class);
                                          
                           tmp_tree = obj.tree;
-                          tmp_tree.final_state_probs( new_state{d_class}(1:sum_class(d_class))+1 ) = temp_prob(1);
-                         % USE Set method (Definition in base class)
+                          % SET.final_state_probs (TreeModel.m)
+                          tmp_tree.final_state_probs( new_state{d_class}(1:sum_class(d_class)) +1 ) = temp_prob(1);
+                          % SET.tree
                           obj.tree = tmp_tree;    
                      end
                      
                      for d_class = 1:nperiods                                              
-                         % USE Set method
+                         % SET.d_rcomb
                          obj.d_rcomb(new_state{d_class}(1:sum_class(d_class))+1, period, k) = d_sum(d_class) / prob_sum(d_class);
                          
                          % Alternative way:
@@ -140,39 +151,36 @@ classdef DLWDamage < Damage
              % After final_states_prob being updated
              last_num_elements = length(obj.tree.final_state_probs);
              
-             % USE Set method
+             % find the probability-weighted average damage
+             % SET.tree; SET.all_node_probs
              tmp_tree = obj.tree;            
              tmp_tree.all_node_probs(end-(last_num_elements-1):end) = obj.tree.final_state_probs;
              obj.tree = tmp_tree;
              
              for p =2:nperiods-1
-                 % nodes is #of node in tree or python index?
-                 % input of 'reachable_end_states' is #of node in tree or
-                 % python index?
-                 nodes = obj.tree.get_nodes_in_period(p);
-                 
+                 nodes = obj.tree.get_nodes_in_period(p-1);   
                  % look into all the nodes for the period
                  for node = nodes(1):nodes(2) 
                     end_states = obj.tree.reachable_end_state(node); % determine reachable final states
                     worst_end_state = end_states(1);
                     best_end_state = end_states(2);
                     
-                    % USE Set method
+                    % SET.tree
                     tmp_tree = obj.tree;
                     tmp_tree.all_node_probs(node+1) = sum( obj.tree.final_state_probs(worst_end_state+1:best_end_state+1) );
                     obj.tree = tmp_tree;
-                 end
-                 
+                 end                 
              end           
         end
         
-        % Modified based on Python version.
+        
         function damage_interpolation(obj)
             
+        % Modified based on Python version.
         % Create the interpolation coefficients used in `damage_function`.
-            
+        
             if isempty(obj.d)
-                fprintf('Importing stored damage simulation.');
+                fprintf('Importing stored damage simulation...');
                 obj.import_damages();
             end
             
@@ -299,7 +307,8 @@ classdef DLWDamage < Damage
              ds = DamageSimulation(obj.tree, obj.ghg_levels, peak_temp, disaster_tail, tip_on, temp_map,... 					
                                     temp_dist_params, maxh, obj.cons_growth);
               
-             fprintf('Starting damage simulation...');               
+             fprintf('Starting damage simulation...');    
+             % self.d, self.parameter_list= ds.simulate(draws,self.change, write_to_file = False)
              tmp_d = ds.simulate(draws, save_simulation);
              obj.d = tmp_d;
              fprintf('Done.');       
@@ -309,8 +318,7 @@ classdef DLWDamage < Damage
         end
         
         
-        function forcing_init(obj)
-            
+        function forcing_init(obj)            
         % Initialize `Forcing` object and cum_forcings used in calculating the force mitigation up to a node.
             
             if isempty(obj.emit_pct)
@@ -331,8 +339,8 @@ classdef DLWDamage < Damage
             
             % look into each simulation
             for i  = 1:obj.dnum
-              for n = 2:obj.tree.num_periods
-                  node = obj.tree.get_node(n, 0);
+              for n = 2:obj.tree.num_periods+1
+                  node = obj.tree.get_node(n-1, 0);
                   % return the forcing on the node
                   forcingobj = Forcing();
                   obj.cum_forcings(n-1, i) = forcingobj.forcing_at_node(mitigation(i), node, obj.tree, obj.bau, obj.subinterval_len);												
@@ -364,6 +372,27 @@ classdef DLWDamage < Damage
       
         
         function r = average_mitigation_node(obj, m, node, period)
+            
+%       Calculate the average mitigation up to a given node.
+% 
+% 		Parameters
+% 		----------
+% 		m : ndarray or list
+% 			array of mitigation
+% 		node : int
+% 			node for which average mitigation is to be calculated for
+% 		period : int, optional
+% 			the period the node is in
+% 	
+% 		Returns
+% 		-------
+% 		float
+% 			average mitigation
+            
+            if nargin == 3 || isempty(period)
+                period = NaN;
+            end
+
             if period == 0
                 r = 0;
             elseif isempty(period)
@@ -372,13 +401,11 @@ classdef DLWDamage < Damage
             
             state = obj.tree.get_state(node, period);
             path = obj.tree.get_path(node, period);
-            new_m = m(path(1:end-1));
+            new_m = m(path(1:end-1)); % mitigation on the path until this node
             
             period_len = obj.tree.decision_times(2:period) - obj.tree.decision_times(1:period-1);
-            bau_emissions = obj.bau.emission_by_decisions(1:period-1);
-            % total emission: sum of emissions during each period
-            total_emission = sum(bau_emissions .* period_len);
-            % mitigation for a path until node
+            bau_emissions = obj.bau.emission_by_decisions(1:period-1); % emission levels at each decision point            
+            total_emission = sum(bau_emissions .* period_len); % total emission: sum of emissions during each period            
             tmp = bau_emissions .* period_len;
             ave_mitigation = sum(new_m .* tmp);
             r = ave_mitigation / total_emission;
@@ -400,7 +427,7 @@ classdef DLWDamage < Damage
 % 		ndarray
 % 			average mitigations
             
-            nodes = obj.tree.get_num_nodes_period(period);
+            nodes = obj.tree.get_num_nodes_period(period); % number of nodes for a given period
             ave_mitigation = zeros(nodes);
             for i = 1:nodes
                 node = obj.tree.get_node(period, i-1);
@@ -411,8 +438,10 @@ classdef DLWDamage < Damage
         
         
         function r = ghg_level_node(obj, m, node)
+            
             forcingobj = Forcing();
             r = forcingobj.ghg_level_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len);
+            
         end
         
         
@@ -442,13 +471,14 @@ classdef DLWDamage < Damage
             
             if isempty(nodes) && ~isempty(period)
                 [start_node, end_node] = obj.tree.get_nodes_in_period(period);
+                if period >= obj.tree.num_periods
+                    add = end_node - start_node + 1;
+                    start_node = start_node + add;
+                    end_node = end_node + add;
+                end
+                nodes = start_node:end_node;
             end
-            if period >= obj.tree.num_periods
-				add = end_node - start_node + 1;
-				start_node = start_node + add;
-				end_node = end_node + add;
-            end
-			nodes = start_node:end_node;
+			
             if isempty(period) && isempty(nodes)
                 error('Need to give function either nodes or the period.');
             end
@@ -491,16 +521,16 @@ classdef DLWDamage < Damage
                 ghg_level = zeros(1, obj.tree.num_decision_nodes);
             end
             
+            % for each period, find the right start and end node within this period and add ghg_level for this nodes
             for period = 1:periods+1
                 [start_node, end_node] = obj.tree.get_nodes_in_period(period);
                 if period >= obj.tree.num_periods
                     add = end_node - start_node + 1;
                     start_node = start_node + add;
-                    end_node = end_node + add;
-                    
+                    end_node = end_node + add; 
                 end
                 nodes = start_node : end_node;
-                ghg_level(nodes+1) = obj.ghg_level_period(m, nodes);
+                ghg_level(nodes+1) = obj.ghg_level_period(m, NaN, nodes);
             end
             
             r = ghg_level;
@@ -528,9 +558,10 @@ classdef DLWDamage < Damage
             force_mitigation = obj.forcing_based_mitigation(forcing, period);
             ghg_extension = 1.0 / (1 + exp(0.05 * (ghg_level-200)));
             
-            [worst_end_state, best_end_state] = obj.tree.reachable_end_states(node, period);
+            [worst_end_state, best_end_state] = obj.tree.reachable_end_states(node);
             probs = obj.tree.final_states_prob(worst_end_state+1 : best_end_state+1);
             
+            % new damage formulas 
             if force_mitigation < self.emit_pct(2)
                 damage = sum( probs * ( obj.damage_coefs(2, 2, period, worst_end_state+1:best_end_state+1) * force_mitigation...
                     + obj.damage_coefs(2, 3, period, worst_end_state+1:best_end_state+1) ) );
