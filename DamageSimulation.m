@@ -109,13 +109,17 @@ classdef DamageSimulation
             obj.draws = [1 10];
         end
         
+        
+        % SET methods for properties
+        % SET method for draws
         function obj = set.draws(obj, value)
             obj.draws = value;           
         end
-       
+        % SET method for d
         function obj = set.d(obj, value)
             obj.d = value;           
         end
+        
         
         function r = simulate(obj, draws, write_to_file)
             
@@ -146,9 +150,7 @@ classdef DamageSimulation
             dnum = length(obj.ghg_levels);
                     
             obj.draws = draws;
-            
-            % Useless property
-            %obj.peak_cons = exp(obj.cons_growth * obj.tree.decision_times(2:end));
+            obj.peak_cons = exp(obj.cons_growth * obj.tree.decision_times(2:end));
 
             if obj.temp_map == 0
                 temperature = obj.pindyck_simulation();
@@ -186,8 +188,12 @@ classdef DamageSimulation
             
             % Without multi-processing
             obj.d = obj.run_path(temperature);
+            if write_to_file
+                  obj.write_to_file();
+            end
             r = obj.d;
         end
+        
         
         % USE "write_column_csv" and "append_to_existing" function
         function write_to_file(obj) 
@@ -203,6 +209,7 @@ classdef DamageSimulation
             dlmwrite(filename, d_write', delimeter);
         end
         
+        
         %dimension here is an array, like [1,5]
         function r = gamma_array(obj, shape, rate, dimension)
             r = gamrnd(shape, 1/rate, dimension);
@@ -213,8 +220,9 @@ classdef DamageSimulation
         end
         
         function r = uniform_array(obj, dimension)
-            r = unifrnd(0,1,dimension);
+            r = unifrnd(0, 1, dimension);
         end
+        
         
         function r = sort_array(obj, array)
             col = obj.tree.num_periods;    
@@ -237,6 +245,7 @@ classdef DamageSimulation
                for i = 1:n
                    % obj.draws is array like [1, 50]
                    % every loop formulate one ROW of temperature matrix
+                   % size of temperature matrix is 'n*draws'
                    temperature(i,:) = obj.normal_array(ave(i), std(i), obj.draws);                   
                end           
                r = exp(temperature);
@@ -287,6 +296,7 @@ classdef DamageSimulation
         pindyck_temp_theta = [1.6667, 1.5974, 1.53139];
         pindyck_temp_displace = [-0.25, -0.5, -1.0];
         
+        % return a matrix of '3*draws'
             for i = 1:3
                 pindyck_tmp(i,:) = obj.gamma_array(pindyck_temp_k(i), pindyck_temp_theta(i), obj.draws);
                 r(i,:) = pindyck_tmp(i,:) + pindyck_temp_displace(i);
@@ -326,9 +336,11 @@ classdef DamageSimulation
         end
         
         
-        function r = pindyck_impact_simulation(obj)            
+        function r = pindyck_impact_simulation(obj)    
+            
         % Pindyck gamma distribution mapping temperature into damages.
         % get the gamma in loss function
+        
             pindyck_impact_k = 4.5;
             pindyck_impact_theta = 21341.0;
             pindyck_impact_displace = -0.0000746;
@@ -357,16 +369,19 @@ classdef DamageSimulation
         end
          
         
-        function r = interpolation_of_temp(obj, temperature)           
+        function r = interpolation_of_temp(obj, temperature)
+            
         % For every temp in each period, modify it using a coff regards to the current period (using a smoothing method.)
-            r = zeros(size(temperature));
+        
+            tmp_r = zeros(size(temperature));
             
              % modify the temp using a exp coefficient (need the new article to get it)
             for i = 1:size(temperature,1)
                 for n = 1:size(temperature,2)
-                r(i,n) = temperature(i,n) * 2.0 * (1 -  0.5^(obj.tree.decision_times(i+1)/obj.maxh));
+                tmp_r(i,n) = temperature(i,n) * 2.0 * (1 -  0.5^(obj.tree.decision_times(i+1)/obj.maxh));
                 end
             end
+            r = tmp_r;
         end
         
         
@@ -374,7 +389,7 @@ classdef DamageSimulation
         % Economic impact of temperatures, Pindyck [2009].
         
             impact = obj.pindyck_impact_simulation();
-            for i = 1:size(impact,1)
+            for i = 1:length(impact)
                 term1(i,:) = -2.0 * impact(i) .* temperature(i,:) * obj.maxh / log(0.5); 
                 term2(i,:) = obj.cons_growth - 2.0 * impact(i) .* temperature(i,:) * obj.tree.decision_times(i+1);
                 term3(i,:) = 2.0 * impact(i) * temperature(i,:) * 0.5^(obj.tree.decision_times(i+1)/obj.maxh)...
@@ -459,7 +474,7 @@ classdef DamageSimulation
         
         % sort based on outcome of simulation
         consump = obj.sort_array(consump);
-        damage = 1.0 - (consump / peak_cons);
+        damage = 1.0 - (consump ./ peak_cons);
         weights = obj.tree.final_states_prob*(obj.draws);
         weights = floor(cumsum(weights));
         
