@@ -103,6 +103,7 @@ classdef DLWBusinessAsUsual < BusinessAsUsual
             end  
         end
         
+        
         % Set the emission_per_period property
         function r = get.emission_per_period(obj)
             num_periods = obj.tree.num_periods;
@@ -136,37 +137,36 @@ classdef DLWBusinessAsUsual < BusinessAsUsual
         end
         
         
-%         function bau_emissions_setup(obj, tree)
-%             
-% %         Create default business as usual emissions path. The emission rate in each period is 
-% %         assumed to be the average of the emissions at the beginning and at the end of the period.
-% % 
-% %         Parameters
-% %         ----------
-% %         tree : `TreeModel` object
-% %             provides the tree structure used
-%                        
-%             num_periods = tree.num_periods; 
-%             obj.emission_by_decisions = zeros(1, num_periods);            
-%             obj.emission_per_period = zeros(1, num_periods);
-%             obj.bau_path = zeros(1, num_periods);
-%             obj.bau_path(1) = obj.ghg_start;
-%             obj.emission_by_decisions(1) = obj.emission_by_time(tree.decision_times(1));
-%             period_len = tree.decision_times(2:end) - tree.decision_times(1:end-1);
-%             
-%             for n = 2:num_periods
-%                 obj.emission_by_decisions(n) = obj.emission_by_time(tree.decision_times(n));
-%                 obj.emission_per_period(n) = period_len(n) * (mean(obj.emission_by_decisions(n-1:n)));
-%             end
-%             
-%             % The total increase in ghg level of 600 (from 400 to 1000) in the bau path is allocated over time
-%             obj.emission_to_ghg = (obj.ghg_end - obj.ghg_start) * obj.emission_per_period / sum(obj.emission_per_period);
-%             obj.emission_to_bau = obj.emission_to_ghg(end) / obj.emission_per_period(end);
-%             for n = 2:num_periods
-%                 obj.bau_path(n) = obj.bau_path(n-1) + obj.emission_per_period(n) * obj.emission_to_bau;
-%             end
-%         end
-%         
-        
+%          function bau_emissions_setup(obj, tree)
+%              
+%  %         Create default business as usual emissions path. The emission rate in each period is 
+%  %         assumed to be the average of the emissions at the beginning and at the end of the period.
+%  % 
+%  %         Parameters
+%  %         ----------
+%  %         tree : `TreeModel` object
+%  %             provides the tree structure used
+%                         
+%              num_periods = tree.num_periods; 
+%              obj.emission_by_decisions = zeros(1, num_periods);            
+%              obj.emission_per_period = zeros(1, num_periods);
+%              obj.bau_path = zeros(1, num_periods);
+%              obj.bau_path(1) = obj.ghg_start;
+%              obj.emission_by_decisions(1) = obj.emission_by_time(tree.decision_times(1));
+%              period_len = tree.decision_times(2:end) - tree.decision_times(1:end-1);
+%              
+%              for n = 2:num_periods
+%                  obj.emission_by_decisions(n) = obj.emission_by_time(tree.decision_times(n));
+%                  obj.emission_per_period(n) = period_len(n) * (mean(obj.emission_by_decisions(n-1:n)));
+%              end
+%              
+%              % The total increase in ghg level of 600 (from 400 to 1000) in the bau path is allocated over time
+%              obj.emission_to_ghg = (obj.ghg_end - obj.ghg_start) * obj.emission_per_period / sum(obj.emission_per_period);
+%              obj.emission_to_bau = obj.emission_to_ghg(end) / obj.emission_per_period(end);
+%              for n = 2:num_periods
+%                  obj.bau_path(n) = obj.bau_path(n-1) + obj.emission_per_period(n) * obj.emission_to_bau;
+%              end
+%          end
+                 
     end
 end
