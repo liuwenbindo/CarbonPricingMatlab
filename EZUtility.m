@@ -21,10 +21,10 @@ classdef EZUtility
    methods
        
        % Constructor
-       function r = EZUtility (obj, tree, damage, cost, period_len, eis, ra, time_pref, add_penalty_cost,...
+       function obj = EZUtility (tree, damage, cost, period_len, eis, ra, time_pref, add_penalty_cost,...
                max_penalty, penalty_scale)
            % Set default values of input arguments
-           if nargin == 5
+           if nargin == 4
                 eis = 0.9;
                 ra = 7.0;
                 time_pref = 0.005;
