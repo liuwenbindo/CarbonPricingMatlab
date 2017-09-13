@@ -18,7 +18,7 @@ classdef SmallStorageTree < BaseStorageTree
             obj.init_tree();
         end         
         function r = get_next_period_array(obj, period)
-        	if obj.is_real_decision_period(period)   
+            if obj.is_real_decision_period(period)   
                 for i=1:length(obj.decision_times)
                     if period == obj.decision_times(i)
                         j = i;                
