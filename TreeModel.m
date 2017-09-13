@@ -102,7 +102,7 @@ classdef TreeModel
         
         %method 4: get_node
         function r = get_node(obj, period, state)
-            if period >= obj.num_periods
+            if period > obj.num_periods
                 error('Error: given period is larger than number of periods!');
             end
             if state >= 2^period
