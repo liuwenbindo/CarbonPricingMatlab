@@ -89,6 +89,7 @@ classdef DamageSimulation
         cons_growth
         d
         draws
+        peak_cons
     end
     
     methods
@@ -389,10 +390,10 @@ classdef DamageSimulation
         % Economic impact of temperatures, Pindyck [2009].
         
             impact = obj.pindyck_impact_simulation();
-            for i = 1:length(impact)
-                term1(i,:) = -2.0 * impact(i) .* temperature(i,:) * obj.maxh / log(0.5); 
-                term2(i,:) = obj.cons_growth - 2.0 * impact(i) .* temperature(i,:) * obj.tree.decision_times(i+1);
-                term3(i,:) = 2.0 * impact(i) * temperature(i,:) * 0.5^(obj.tree.decision_times(i+1)/obj.maxh)...
+            for i = 1:size(temperature,1)
+                term1(:,:,i) = -2.0 * impact' * temperature(i,:) * obj.maxh / log(0.5); 
+                term2(:,:,i) = obj.cons_growth - 2.0 * impact' * temperature(i,:) * obj.tree.decision_times(i+1);
+                term3(:,:,i) = 2.0 * impact' * temperature(i,:) * 0.5^(obj.tree.decision_times(i+1)/obj.maxh)...
                              * obj.maxh / log(0.5);
             end
             r = exp(term1 + term2 + term3);
@@ -416,11 +417,14 @@ classdef DamageSimulation
              
              tmp_scale = max(obj.peak_temp, tmp);           
              ave_prob_of_survival = 1 - (tmp./tmp_scale).^2;
+             size(ave_prob_of_survival)
+             size(period_lengths / peak_temp_interval)
              
              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
              % Mismatch dimensions
              %
              % formula (28) prob(tb)=1-[1-(tmp/tmp_scale)^2]^(period_len/peak_interval)
+             
              prob_of_survival = (ave_prob_of_survival).^(period_lengths / peak_temp_interval);
              %
              %
