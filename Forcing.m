@@ -83,7 +83,7 @@ classdef Forcing
             end
             
             period = tree.get_period(node);
-            path = tree.get_path(node, period);
+            path = tree.get_path(node);
             
             period_lengths = tree.decision_times(2:period+1) - tree.decision_times(1:period);
             increments = period_lengths/subinterval_len;
@@ -147,7 +147,7 @@ classdef Forcing
         
         function r = ghg_level_at_node(cls, m, node, tree, bau, subinterval_len)
             
-%         Calculates the GHG level leading up to the damage calculation in `node`.
+%       Calculates the GHG level leading up to the damage calculation in `node`.
 % 
 % 		Parameters
 % 		----------
