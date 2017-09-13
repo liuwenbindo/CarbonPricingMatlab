@@ -10,6 +10,7 @@ classdef DLWDamage < Damage
         d_rcomb
         emit_pct
         damage_coefs
+        d_import_flag
     end
         
     methods 
@@ -26,14 +27,15 @@ classdef DLWDamage < Damage
             obj.d_rcomb = NaN;
             obj.emit_pct = NaN;
             obj.damage_coefs = NaN;
+            obj.d_import_flag = 0;
         end
         
         
         % Get/Set Methods for Properties       
-        % Get method of property d_rcomb
-        function r = get.d_rcomb(obj)
-            r = obj.d;  
-        end                
+%         % Get method of property d_rcomb
+%         function r = get.d_rcomb(obj)
+%             r = obj.d;  
+%         end                
         % Set method of property d_rcomb
         function obj = set.d_rcomb(obj,value)
             obj.d_rcomb = value;
@@ -54,9 +56,13 @@ classdef DLWDamage < Damage
         function obj = set.damage_coefs(obj,value)
             obj.damage_coefs = value;
         end
+        % Set method of property d_import_flag
+        function obj = set.d_import_flag(obj,value)
+            obj.d_import_flag = value;
+        end
         
         
-        function recombine_nodes(obj)
+        function obj = recombine_nodes(obj)
             
 %       Creating damage coefficients for recombining tree. The state reached by an up-down move is
 % 		separate from a down-up move because in general the two paths will lead to different degrees of 
@@ -71,7 +77,7 @@ classdef DLWDamage < Damage
             % Shallow copy in original Python script, should I keep it?
             temp_prob = obj.tree.final_state_probs;
             obj.d_rcomb = obj.d;
-            
+                        
             for old_state = 1:obj.tree.num_final_states
                 temp = old_state;
                 n = nperiods-2; % last period before recombining
@@ -124,9 +130,10 @@ classdef DLWDamage < Damage
                      d_sum = zeros(1, nperiods);    %store the probability-weighted sum of the simulated damage for each category
                      old_state = 1;    %direct to the first node in the the category set, signal
                      
-                     for d_class = 1 : nperiods
+                     
+                     for d_class = 1 : nperiods                         
                           d_sum(d_class) = sum( obj.tree.final_state_probs( old_state : old_state+sum_class(d_class)-1 ) ...
-						 			 .* obj.d_rcomb(old_state : old_state+sum_class(d_class)-1, period, k) );
+						 			 .* obj.d_rcomb(old_state : old_state+sum_class(d_class)-1, period, k)' );
                           old_state = old_state + sum_class(d_class);
                                          
                           tmp_tree = obj.tree;
@@ -174,49 +181,57 @@ classdef DLWDamage < Damage
         end
         
         
-        function damage_interpolation(obj)
+        function obj = damage_interpolation(obj)
             
         % Modified based on Python version.
         % Create the interpolation coefficients used in `damage_function`.
         
-            if isempty(obj.d)
+            if obj.d_import_flag == 0
                 fprintf('Importing stored damage simulation...');
-                obj.import_damages();
+                obj = obj.import_damages();
             end
+                  
+            obj = obj.recombine_nodes();            
             
-            obj.recombine_nodes();
-            if isempty(obj.emit_pct)
+            if isnan(obj.emit_pct)
                 bau_emission = obj.bau.ghg_end - obj.bau.ghg_start;
                 tmp_emit_pct = 1.0 - (obj.ghg_levels - obj.bau.ghg_start) / bau_emission;
                 obj.emit_pct = tmp_emit_pct;               
             end
-                    
-            %----------------------------------------------%
-            % WILL REFINE TO A MORE VERSION WITH MORE LOOPS%
-            %----------------------------------------------%
-            
+                            
             obj.damage_coefs = zeros(obj.dnum-1, obj.dnum, obj.tree.num_periods, obj.tree.num_final_states);
             amat = ones(obj.dnum, obj.dnum, obj.tree.num_periods);
             bmat = ones(obj.tree.num_periods, obj.dnum);
+                                 
             
-            obj.damage_coefs(end, end, :, :) = obj.d_rcomb(:, :, end);
-            obj.damage_coefs(end, end-1, :, :) = (obj.d_rcomb(:,:, end-1) - obj.d_rcomb(:, :, end)) / obj.emit_pct(end-1);
+            for p = 1:obj.tree.num_periods
+                for s = 1:obj.tree.num_final_states                   
+                    obj.damage_coefs(obj.dnum-1, obj.dnum, p, s) = obj.d_rcomb(s, p, obj.dnum);
+                    obj.damage_coefs(obj.dnum-1, obj.dnum-1, p, s) = (obj.d_rcomb(s, p, obj.dnum-1) - obj.d_rcomb(s, p, obj.dnum)) / obj.emit_pct(1, end-1);                    
+                end
+            end        
             
-            amat(1, 1, :) = 2.0 * obj.emit_pct(end-1);
-            amat(2:end, 1, :) = obj.emit_pct(1:end-1).^2;
-            amat(2:end, 2, :) = obj.emit_pct(1:end-1);
-            amat(1, end, :) = 0.0;
+            %obj.damage_coefs
+            
+            for i = 1:obj.tree.num_periods
+                amat(1, 1, i) = 2.0 * obj.emit_pct(end-1);
+                amat(2:end, 1, i) = (obj.emit_pct(1:end-1).^2)';
+                amat(2:end, 2, i) = (obj.emit_pct(1:end-1))';
+                amat(1, end, i) = 0.0;
+            end
+                            
             
             for state = 1:obj.tree.num_final_states
-                bmat(:, 1) = obj.damage_coefs(end, end-1, :, state) * obj.emit_pct(end-1);
-                bmat(:, 2:end) = obj.d_rcomb(state, :, 1:end-1)';
-                
-                obj.damage_coefs(:, 1, state) = linsolve(amat, bmat);
+               for j = 1:obj.tree.num_periods
+                 bmat(j, 1) = obj.damage_coefs(end, end-1, j, state) * obj.emit_pct(end-1);
+                 bmat(j, 2:end) = obj.d_rcomb(state, j, 1:end-1); 
+                 obj.damage_coefs(1, :, j, state) = linsolve(amat(:,:,j), bmat(j,:)');
+               end                            
             end                        
         end
         
         
-        function import_damages(obj, file_name)
+        function obj = import_damages(obj, file_name)
             
 %       Import saved simulated damages. File must be saved in 'data' directory
 % 		inside current working directory. Save imported values in `d`. 
@@ -232,27 +247,28 @@ classdef DLWDamage < Damage
 % 			If file does not exist.
             
             if nargin == 1 || isempty(file_name)
-                file_name = 'simulated_damages';               
+                file_name = 'simulated_damages.csv';               
             end
             
-            fileID = fopen(file_name);
+            %fileID = fopen(file_name);
             
             try
-                d_fromcsv = csvread(file_name);
+                d_fromcsv = dlmread('simulated_damages.csv',';');
             catch
                 message = ferror(fileID);
                 error(message);
             end
             
-            fclose(file_name);
+            %fclose(file_name);
             
             n = obj.tree.num_final_states;
-            tmp_d = {};
+            tmp_d = zeros(n,6,obj.dnum);
             for i = 1:obj.dnum
-                tmp_d{i} = d_fromcsv(n*i+1 : n*(i+1));
-            end
+                tmp_d(:,:,i) = d_fromcsv(n*(i-1)+1 : n*(i),:);
+            end           
             obj.d = tmp_d;
-            obj.damage_interpolation();            
+            obj.d_import_flag = 1;
+            
         end
         
         
@@ -318,10 +334,10 @@ classdef DLWDamage < Damage
         end
         
         
-        function forcing_init(obj)            
+        function obj = forcing_init(obj)            
         % Initialize `Forcing` object and cum_forcings used in calculating the force mitigation up to a node.
             
-            if isempty(obj.emit_pct)
+            if isnan(obj.emit_pct)
                 bau_emission = obj.bau.ghg_end - obj.bau.ghg_start;
                 tmp_emit_pct = 1.0 - (obj.ghg_levels - obj.bau.ghg_start) / bau_emission;
                 obj.emit_pct = tmp_emit_pct;
@@ -343,19 +359,21 @@ classdef DLWDamage < Damage
                   node = obj.tree.get_node(n-1, 0);
                   % return the forcing on the node
                   forcingobj = Forcing();
-                  obj.cum_forcings(n-1, i) = forcingobj.forcing_at_node(mitigation(i), node, obj.tree, obj.bau, obj.subinterval_len);												
+                  obj.cum_forcings(n-1, i) = forcingobj.forcing_at_node(mitigation(i,:), node, obj.tree, obj.bau, obj.subinterval_len);												
               end
             end
         end
         
         
-        function r = forcing_based_mitigation(obj, forcing, period)
+        function [obj, r] = forcing_based_mitigation(obj, forcing, period)
             
 %       Calculation of mitigation based on forcing up to period. Interpolating between the forcing associated 
 % 		with the constant degree of mitigation consistent with the damage simulation scenarios.
 		
         % this whole function is based on a new theory
             p = period - 1;
+            obj = obj.forcing_init();
+            
             if forcing > obj.cum_forcings(p+1, 2)
                 weight_on_sim2 = (obj.cum_forcings(p+1, 3) - forcing) / (obj.cum_forcings(p+1, 3) - obj.cum_forcings(p+1, 2));
                 weight_on_sim3 = 0;
@@ -367,7 +385,7 @@ classdef DLWDamage < Damage
                 weight_on_sim3 = 1.0 + (obj.cum_forcings(p+1, 1) - forcing) / obj.cum_forcings(p+1,1);
             end
             
-            r = weight_on_sim2 * obj.emit_pct(2) + weight_on_sim3 * self.emit_pct(1);
+            r = weight_on_sim2 * obj.emit_pct(2) + weight_on_sim3 * obj.emit_pct(1);
         end
       
         
@@ -399,14 +417,15 @@ classdef DLWDamage < Damage
                 period = obj.tree.get_period(node);                
             end
             
-            state = obj.tree.get_state(node, period);
-            path = obj.tree.get_path(node, period);
-            new_m = m(path(1:end-1)); % mitigation on the path until this node
+            state = obj.tree.get_state(node);
+            path = obj.tree.get_path(node);
+            new_m = m(path(1:end-1)+1); % mitigation on the path until this node
             
-            period_len = obj.tree.decision_times(2:period) - obj.tree.decision_times(1:period-1);
-            bau_emissions = obj.bau.emission_by_decisions(1:period-1); % emission levels at each decision point            
-            total_emission = sum(bau_emissions .* period_len); % total emission: sum of emissions during each period            
+            period_len = obj.tree.decision_times(2:period+1) - obj.tree.decision_times(1:period);
+            bau_emissions = obj.bau.emission_by_decisions(1:period); % emission levels at each decision point            
+            total_emission = sum(bau_emissions .* period_len); % total emission: sum of emissions during each period                       
             tmp = bau_emissions .* period_len;
+   
             ave_mitigation = sum(new_m .* tmp);
             r = ave_mitigation / total_emission;
             
@@ -428,10 +447,10 @@ classdef DLWDamage < Damage
 % 			average mitigations
             
             nodes = obj.tree.get_num_nodes_period(period); % number of nodes for a given period
-            ave_mitigation = zeros(nodes);
+            ave_mitigation = zeros(1, nodes);
             for i = 1:nodes
-                node = obj.tree.get_node(period, i-1);
-                ave_mitigation(i) = obj.average_mitigation_node(m, node, period);                
+                node = obj.tree.get_node(period, i-1);                
+                ave_mitigation(i) = obj.average_mitigation_node(m, node, period);                  
             end
             r = ave_mitigation;
         end
@@ -537,55 +556,65 @@ classdef DLWDamage < Damage
         end
         
         
-        function r = damage_function_node(obj, m, node)
+        function [obj, r] = damage_function_node(obj, m, node)
             
 %           Calculate the damage at any given node, based on mitigation actions in `m`.
 
-            if isempty(obj.damage_coefs) 
-                obj.damage_interpolation();
+            if isnan(obj.damage_coefs) 
+                obj = obj.damage_interpolation();
             end
-            if isempty(obj.cum_forcings)
-                obj.forcing_init();
+            if isnan(obj.cum_forcings)
+                obj = obj.forcing_init();
             end
             if node == 0
                 r = 0.0;
             end
             
             period = obj.tree.get_period(node);
-            % After Forcing object
-            forcingobj = Forcing();
-            [forcing, ghg_level] = forcingobj.forcing_and_ghg_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len, 'both');
-            force_mitigation = obj.forcing_based_mitigation(forcing, period);
-            ghg_extension = 1.0 / (1 + exp(0.05 * (ghg_level-200)));
             
-            [worst_end_state, best_end_state] = obj.tree.reachable_end_states(node);
-            probs = obj.tree.final_states_prob(worst_end_state+1 : best_end_state+1);
+            forcingobj = Forcing();
+            rarray = forcingobj.forcing_and_ghg_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len, 'both');
+            forcing = rarray(1); 
+            %forcing
+            ghg_level = rarray(2);
+            %ghg_level
+            [obj, force_mitigation] = obj.forcing_based_mitigation(forcing, period);
+            %force_mitigation
+            ghg_extension = 1.0 / (1 + exp(0.05 * (ghg_level-200)));
+            %ghg_extension
+            
+            rarray = obj.tree.reachable_end_state(node);          
+            worst_end_state = rarray(1);
+            best_end_state = rarray(2);
+            probs = obj.tree.final_state_probs(worst_end_state+1 : best_end_state+1);            
             
             % new damage formulas 
-            if force_mitigation < self.emit_pct(2)
+            if force_mitigation < obj.emit_pct(2)
                 damage = sum( probs * ( obj.damage_coefs(2, 2, period, worst_end_state+1:best_end_state+1) * force_mitigation...
-                    + obj.damage_coefs(2, 3, period, worst_end_state+1:best_end_state+1) ) );
-                
-            elseif force_mitigation < self.emit_pct(1)
+                    + obj.damage_coefs(2, 3, period, worst_end_state+1:best_end_state+1) ) );                                       
+            elseif force_mitigation < obj.emit_pct(1)
                 damage = sum( prob * (obj.damage_coefs(1, 1, period, worst_end_state+1 : best_end_state+1) * force_mitigation^2 ...
                             + obj.damage_coefs(1, 2, period, worst_end_state+1 : best_end_state+1) * force_mitigation ...
                             + obj.damage_coefs(1, 3, period, worst_end_state+1 : best_end_state+1)));
             else
                 damage = 0.0;  
                 i = 0;
-                for state = worst_end_state:best_end_state
-                    if self.d_rcomb(state+1, period, 1) > 1e-5
-                        deriv = 2.0 * obj.damage_coefs(1, 1, period, state+1) * self.emit_pct(1) ...
-							+ obj.damage_coefs(1, 2, period, state+1);
-                        decay_scale = deriv / (obj.d_rcomb(state+1, period, 1) *log(0.5));
-                        dist = force_mitigation - obj.emit_pct(1) + log(self.d_rcomb(state+1, period, 1)) ...
-						   / (log(0.5) * decay_scale); 
-                        damage = damage + probs(i+1) * (0.5^(decay_scale * dist) * exp(-(force_mitigation - obj.emit_pct(1)).^2/60.0));
-                    end
-                    i = i+1;
+                 for state = worst_end_state:best_end_state
+                     if obj.d_rcomb(state+1, period, 1) > 1e-5
+                         deriv = 2.0 * obj.damage_coefs(1, 1, period, state+1) * obj.emit_pct(1) ...
+ 							+ obj.damage_coefs(1, 2, period, state+1);
+                         
+                         decay_scale = deriv / (obj.d_rcomb(state+1, period, 1) *log(0.5));
+                        
+                         dist = force_mitigation - obj.emit_pct(1) + log(obj.d_rcomb(state+1, period, 1)) ...
+                            / (log(0.5) * decay_scale); 
+                        
+                         damage = damage + probs(i+1) * (0.5^(decay_scale * dist) * exp(-(force_mitigation - obj.emit_pct(1)).^2/60.0));
+                     end
+                     i = i+1;
                 end
             end
-            
+            %damage
             r = (damage / sum(probs)) + ghg_extension;
         end
              
@@ -610,7 +639,7 @@ classdef DLWDamage < Damage
             damages = zeros(1, nodes);
             for i = 1:nodes
                 node = obj.tree.get_node(period, i-1);
-                damages(i) = obj.damage_function_node(m, node);
+                [obj, damages(i)] = obj.damage_function_node(m, node);
             end
             r = damages;            
         end  
