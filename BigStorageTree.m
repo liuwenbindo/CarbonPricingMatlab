@@ -36,14 +36,16 @@ classdef BigStorageTree < BaseStorageTree
         % Note: as MATLAB index starts with 1, so the return of this
         % function will be: 1 + returnOfPythonCode
         function r = between_decision_times(obj, period)
+            
             if period == 0
                 r = 0;
             end
-            for i = 1:(length(obj.information_times))
-                if obj.decision_times(i) <= period && period < obj.decision_times(i+1)
-                    r = i;
+            
+            for i = 1:(length(obj.decision_times)-1)
+                if (obj.decision_times(i) <= period) && (period < obj.decision_times(i+1))
+                    r = i-1;
                 end                
-            end            
+            end                       
         end
         
         % Note: as MATLAB index starts with 1, so the return of this

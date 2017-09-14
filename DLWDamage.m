@@ -371,7 +371,11 @@ classdef DLWDamage < Damage
 % 		with the constant degree of mitigation consistent with the damage simulation scenarios.
 		
         % this whole function is based on a new theory
-            p = period - 1;
+            if period == 0
+                p = period;
+            else
+                p = period - 1;
+            end
             obj = obj.forcing_init();
             
             if forcing > obj.cum_forcings(p+1, 2)
@@ -571,6 +575,11 @@ classdef DLWDamage < Damage
             end
             
             period = obj.tree.get_period(node);
+            if period == 0
+                       p = 1;
+            else
+                       p = period;
+            end
             
             forcingobj = Forcing();
             rarray = forcingobj.forcing_and_ghg_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len, 'both');
@@ -583,9 +592,10 @@ classdef DLWDamage < Damage
             ghg_extension = 1.0 / (1 + exp(0.05 * (ghg_level-200)));
             %ghg_extension
             
-            rarray = obj.tree.reachable_end_state(node);          
+            rarray = obj.tree.reachable_end_state(node);
             worst_end_state = rarray(1);
             best_end_state = rarray(2);
+           
             probs = obj.tree.final_state_probs(worst_end_state+1 : best_end_state+1);            
             
             % new damage formulas 
@@ -595,18 +605,21 @@ classdef DLWDamage < Damage
             elseif force_mitigation < obj.emit_pct(1)
                 damage = sum( prob * (obj.damage_coefs(1, 1, period, worst_end_state+1 : best_end_state+1) * force_mitigation^2 ...
                             + obj.damage_coefs(1, 2, period, worst_end_state+1 : best_end_state+1) * force_mitigation ...
-                            + obj.damage_coefs(1, 3, period, worst_end_state+1 : best_end_state+1)));
+                            + obj.damage_coefs(1, 3, p, worst_end_state+1 : best_end_state+1)));
             else
                 damage = 0.0;  
                 i = 0;
                  for state = worst_end_state:best_end_state
-                     if obj.d_rcomb(state+1, period, 1) > 1e-5
-                         deriv = 2.0 * obj.damage_coefs(1, 1, period, state+1) * obj.emit_pct(1) ...
- 							+ obj.damage_coefs(1, 2, period, state+1);
+                     if obj.d_rcomb(state+1, p, 1) > 1e-5
+                         deriv = 2.0 * obj.damage_coefs(1, 1, p, state+1) * obj.emit_pct(1) ...
+ 							+ obj.damage_coefs(1, 2, p, state+1);
                          
-                         decay_scale = deriv / (obj.d_rcomb(state+1, period, 1) *log(0.5));
                         
-                         dist = force_mitigation - obj.emit_pct(1) + log(obj.d_rcomb(state+1, period, 1)) ...
+                        
+                        
+                         decay_scale = deriv / (obj.d_rcomb(state+1, p, 1) *log(0.5));
+                        
+                         dist = force_mitigation - obj.emit_pct(1) + log(obj.d_rcomb(state+1, p, 1)) ...
                             / (log(0.5) * decay_scale); 
                         
                          damage = damage + probs(i+1) * (0.5^(decay_scale * dist) * exp(-(force_mitigation - obj.emit_pct(1)).^2/60.0));
@@ -619,7 +632,7 @@ classdef DLWDamage < Damage
         end
              
         
-        function r = damage_function(obj, m, period)
+        function [obj, r] = damage_function(obj, m, period)
         
 %       Calculate the damage for every node in a period, based on mitigation actions `m`.
 % 
