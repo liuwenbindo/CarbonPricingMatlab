@@ -14,5 +14,28 @@ utilobj = EZUtility (t, df, c, 5);
 mitistrat = ones(1, t.num_decision_nodes);
 
 %df.average_mitigation(mitistrat,5)
-df.damage_function(mitistrat,4)
-                
+[df, damage] = df.damage_function(mitistrat,4);
+
+u = EZUtility(t, df, c, 5.0);
+
+utility_tree = BigStorageTree(u.period_len, u.decision_times);
+cons_tree = BigStorageTree(u.period_len, u.decision_times);
+ce_tree = BigStorageTree(u.period_len, u.decision_times);
+cost_tree = SmallStorageTree(u.decision_times);
+
+% Verify utility: Incorrect
+% x = u.utility(mitistrat);
+
+% Verify end_period_utility: Correct
+% u.end_period_utility(mitistrat, utility_tree, cons_tree, cost_tree);
+
+% Verify certain_equivalence: Correct
+% period = 45;
+% damage_period = utility_tree.between_decision_times(period);
+% cetest = u.certain_equivalence(period, damage_period, utility_tree);
+% cetest
+
+% Verify adjusted_utility: Incorrect
+u.adjusted_utility(mitistrat,NaN,NaN,0.1,0.0,false)
+
+
