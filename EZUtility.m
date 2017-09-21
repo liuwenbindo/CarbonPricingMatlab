@@ -61,21 +61,21 @@ classdef EZUtility
            period_cost = obj.cost.cost(obj.tree.num_periods, period_mitigation, period_ave_mitigation);
            continuation = (1.0 / (1.0 - obj.b * (obj.growth_term^obj.r)))^(1.0 / obj.r);
            
-           
+           % Set value for cost_tree.last_period
            cost_tree = cost_tree.set_value(cost_tree.last_period, period_cost');
            
+           % Set value for cons_tree.last_period
            period_consumption = obj.potential_cons(end) * (1.0 - period_damage);
-           period_consumption(period_consumption <= 0) = 1e-18;
-           
-           
+           period_consumption(period_consumption <= 0) = 1e-18;           
            cons_tree = cons_tree.set_value(cons_tree.last_period, period_consumption');            
            
+           % Set value for utility_tree.last_period
            utilivalue = (1.0 - obj.b)^(1.0 / obj.r) * cons_tree.last * continuation;          
            utility_tree = utility_tree.set_value(utility_tree.last_period, utilivalue);
        end
        
        
-       function end_period_marginal_utility(obj, mu_tree_0, mu_tree_1, ce_tree, utility_tree, cons_tree)
+       function [ce_tree, mu_tree_0, mu_tree_1] = end_period_marginal_utility(obj, mu_tree_0, mu_tree_1, ce_tree, utility_tree, cons_tree)
            
            % Calculate the terminal marginal utility
            
@@ -84,17 +84,17 @@ classdef EZUtility
            % the margin is future - now which is calculated by following codes.
            
            ce_term = utility_tree.last ^ obj.r - (1.0 - obj.b) * cons_tree.last^obj.r;
-           ce_tree.set_value(ce_tree.last_period, ce_term);
+           ce_tree = ce_tree.set_value(ce_tree.last_period, ce_term);
            
            mu_0_last = (1.0 - obj.b) * (utility_tree(utility_tree.last_period - obj.period_len) / cons_tree.last)^(1.0 - obj.r);
-           mu_tree_0.set_value(mu_tree_0.last_period, mu_0_last);
+           mu_tree_0 = mu_tree_0.set_value(mu_tree_0.last_period, mu_0_last);
            mu_0 = obj.mu_0(cons_tree(cons_tree.last_period - obj.period_len), ce_tree(ce_tree.last_period - obj.period_len));
-           mu_tree_0.set_value(mu_tree_0.last_period - obj.period_len, mu_0);
+           mu_tree_0 = mu_tree_0.set_value(mu_tree_0.last_period - obj.period_len, mu_0);
            
            next_term = obj.b * (1.0 - obj.b) / (1.0 - obj.b * obj.growth_term^obj.r);
            mu_1 = utility_tree(utility_tree.last_period - obj.period_len)^(1 - obj.r) * next_term...
                   * cons_tree.last^(obj.r - 1.0);
-           mu_tree_1.set_value(mu_tree_1.last_period - obj.period_len, mu_1);
+           mu_tree_1 = mu_tree_1.set_value(mu_tree_1.last_period - obj.period_len, mu_1);
        end
        
        
@@ -103,19 +103,20 @@ classdef EZUtility
 %       Caclulate certainty equivalence utility. If we are between decision nodes, i.e. no branching,
 % 		then certainty equivalent utility at time period depends only on the utility next period
 % 		given information known today. Otherwise the certainty equivalent utility is the ability
-% 		weighted sum of next period utility over the partition reachable from the state.
-           
-           if utility_tree.is_decision_period(period) && damage_period == length(obj.decision_times) -2
-               cert_equiv = (utility_tree.get_next_period_array(period))';
-           elseif utility_tree.is_decision_period(period)
+% 		weighted sum of next period utility over the partition reachable
+% 		from the state.
+
+           if utility_tree.is_information_period(period)
                damage_nodes = obj.tree.get_nodes_in_period(damage_period + 1);
                probs = obj.tree.all_node_probs(damage_nodes(1)+1:damage_nodes(2)+1);
                even_probs = probs(1:2:end); % Odd # elements in MATLAB, same as even # of elements in Python.
                odd_probs = probs(2:2:end); % Same as above.
+               
                utility_tree_getnexttmp = utility_tree.get_next_period_array(period);
-
                even_util = (utility_tree_getnexttmp(1:2:end).^(obj.a))' .* even_probs;
+               
                odd_util = (utility_tree_getnexttmp(2:2:end).^(obj.a))' .* odd_probs;
+               
                ave_util = (even_util + odd_util) ./ (even_probs + odd_probs);            
                cert_equiv = ave_util.^(1.0/obj.a);               
            else
@@ -132,7 +133,7 @@ classdef EZUtility
        end
        
        
-       function [r1_u, r2_period] = utility_generator(obj, m, utility_tree, cons_tree, cost_tree, ce_tree, cons_adj)
+       function [utility_tree, r1_u, r2_period] = utility_generator(obj, m, utility_tree, cons_tree, cost_tree, ce_tree, cons_adj)
            
            % Generator for calculating utility for each utility period
            % besides the terminal utility.
@@ -164,24 +165,24 @@ classdef EZUtility
                     [obj.damage, period_damage] = obj.damage.damage_function(m, damage_period);
                     
                     indexbelow = int32(cost_tree.index_below(period + obj.period_len));
-                    cost_tree.set_value(indexbelow, period_cost');  
+                    cost_tree = cost_tree.set_value(indexbelow, period_cost');  
                     
                 end
                 
                 period_consumption = obj.potential_cons(damage_period + 1) ... %NOTICE: damage_period + 1
                     .* (1.0 - period_damage) .* (1.0 - period_cost);               
                 period_consumption(period_consumption <= 0) = 1e-18;
-              
+                
+                % if not a decision time
                 if ~utility_tree.is_decision_period( period )
-                    % if not a decision time
+                    
                     next_consumption = cons_tree.get_next_period_array( period );
                     segment = period - utility_tree.decision_times(damage_period + 1); %NOTICE: damage_period + 1
                     interval = segment + utility_tree.subinterval_len;                  
                     
                     % if the next period is a decision period
                     if utility_tree.is_decision_period(period + obj.period_len)
-                        if period < utility_tree.decision_times(end - 1) 
-                            
+                        if period < utility_tree.decision_times(end - 1)                             
                             next_cost = cost_tree.tree( period + obj.period_len);                   
                             next_consumption = next_consumption' .* (1.0 - repelem(period_cost, 2))./(1.0 - next_cost');
                             next_consumption(next_consumption <= 0) = 1e-18;
@@ -223,8 +224,10 @@ classdef EZUtility
                 u = ((1.0 - obj.b) * (period_consumption).^(obj.r) + ce_term).^(1.0/obj.r);
                 % yield u, period
                 r1_u{k} = u;
-                r2_period{k} = period; 
-                k = k+1;              
+                r2_period{k} = period;
+                utility_tree = utility_tree.set_value(period, u');
+                k = k+1;
+                
             end
        end
        
@@ -265,11 +268,11 @@ classdef EZUtility
            
            [utility_tree, cons_tree, cost_tree] = obj.end_period_utility(m, utility_tree, cons_tree, cost_tree);
            
-           [u, period] = obj.utility_generator(m, utility_tree, cons_tree, cost_tree, ce_tree);
+           [utility_tree, ~, ~] = obj.utility_generator(m, utility_tree, cons_tree, cost_tree, ce_tree);
              
-           for k = 1:length(u)
-               utility_tree.set_value(period{k}, (u{k})');
-           end         
+%            for k = 1:length(u)
+%                utility_tree = utility_tree.set_value(period{k}, (u{k})');
+%            end         
            
            if return_trees
                r1_utility = utilty_tree;
@@ -278,7 +281,7 @@ classdef EZUtility
                r4_ce = ce_tree;
                r0 = NaN;
            else
-               r0 = utility_tree;
+               r0 = utility_tree.tree(0);
                r1_utility = NaN;
                r2_cons = NaN;
                r3_cost = NaN;
@@ -369,25 +372,112 @@ classdef EZUtility
            end
            
            [utility_tree, cons_tree, cost_tree] = obj.end_period_utility(m, utility_tree, cons_tree, cost_tree);          
-           [u, period] = obj.utility_generator(m, utility_tree, cons_tree, cost_tree, ce_tree, first_period_consadj);
+           %[utility_tree, u, period] = obj.utility_generator(m, utility_tree, cons_tree, cost_tree, ce_tree, first_period_consadj);
            
-           i = length(utility_tree.tree) - 2;
            
-           for k = 1:length(u)
-               if period{k} == periods(2)                  
-                   mu_0 = (1.0 - obj.b) * (u{k}./cons_tree.tree(period{k})').^(1.0 - obj.r);                  
+           
+           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    
+           periods = fliplr(utility_tree.periods);                     
+           
+           fprintf('Setting Utility Value...');
+           
+           j = length(utility_tree.tree) - 2;
+           
+           for i = 2:length(periods) 
+               
+                period = periods(i);
+                damage_period = utility_tree.between_decision_times(period);
+                cert_equiv = obj.certain_equivalence(period, damage_period, utility_tree);              
+                
+                if utility_tree.is_decision_period( period + obj.period_len )
+                    
+                    damage_nodes = obj.tree.get_nodes_in_period(damage_period);
+                    period_mitigation = m(damage_nodes(1)+1:damage_nodes(2)+1);                  
+                    period_ave_mitigation = obj.damage.average_mitigation(m, damage_period);                    
+                    period_cost = obj.cost.cost(damage_period, period_mitigation, period_ave_mitigation);
+                    [obj.damage, period_damage] = obj.damage.damage_function(m, damage_period);
+                    
+                    indexbelow = int32(cost_tree.index_below(period + obj.period_len));
+                    cost_tree = cost_tree.set_value(indexbelow, period_cost');  
+                    
+                end
+                
+                period_consumption = obj.potential_cons(damage_period + 1) ... %NOTICE: damage_period + 1
+                    .* (1.0 - period_damage) .* (1.0 - period_cost);               
+                period_consumption(period_consumption <= 0) = 1e-18;
+                
+                % if not a decision time
+                if ~utility_tree.is_decision_period( period )
+                    
+                    next_consumption = cons_tree.get_next_period_array( period );
+                    segment = period - utility_tree.decision_times(damage_period + 1); %NOTICE: damage_period + 1
+                    interval = segment + utility_tree.subinterval_len;                  
+                    
+                    % if the next period is a decision period
+                    if utility_tree.is_decision_period(period + obj.period_len)
+                        if period < utility_tree.decision_times(end - 1)                             
+                            next_cost = cost_tree.tree( period + obj.period_len);                   
+                            next_consumption = next_consumption' .* (1.0 - repelem(period_cost, 2))./(1.0 - next_cost');
+                            next_consumption(next_consumption <= 0) = 1e-18;
+                        end
+                    end
+                    
+                    if size(next_consumption,1) == 1
+                    else
+                        next_consumption = next_consumption';                       
+                    end
+                    
+                    % if the information is not gained i55  n next period, the consumption next period is the same to now
+                    if period <  utility_tree.decision_times(end - 1)
+                        
+                        temp_consumption = next_consumption ./ repelem(period_consumption, 2);
+                        period_consumption = sign(temp_consumption) .* (abs(temp_consumption).^(segment./double(interval)))...
+                            .* repelem(period_consumption, 2);
+                    else                        
+                        temp_consumption = next_consumption./(period_consumption); % for the final stage, we know all the info, and thus the period_consumption ???
+                        period_consumption = sign(temp_consumption) .* (abs(temp_consumption).^(segment./double(interval)))...
+                            .* period_consumption;
+                    end
+                end
+                
+                if period == 0
+                    period_consumption = period_consumption + first_period_consadj;
+                end
+                
+                if size(period_consumption, 1) == 1                 
+                else
+                    period_consumption = period_consumption';
+                end
+                               
+                ce_term = obj.b * cert_equiv.^(obj.r);               
+                
+                ce_tree.set_value(period, ce_term');                
+                cons_tree.set_value(period, period_consumption');
+                              
+                u = ((1.0 - obj.b) * (period_consumption).^(obj.r) + ce_term).^(1.0/obj.r);
+                % yield u, period
+                % utility_tree = utility_tree.set_value(period, u');
+                
+               if period == periods(2)                  
+                   mu_0 = (1.0 - obj.b) * (u./cons_tree.tree(period)').^(1.0 - obj.r);                  
                    next_term = obj.b * (1.0 - obj.b) / (1.0 - obj.b * obj.growth_term^(obj.r));
-                   mu_1 = (u{k}.^(1.0 - obj.r)) * next_term * (cons_tree.last.^(obj.r - 1.0));                   
-                   u{k} = u{k} + ((final_cons_eps + period_cons_eps(end) + node_cons_eps.last) * mu_1)';
-                   u{k} = (period_cons_eps(i+1) + node_cons_eps.tree(period{k})) .* mu_0';                   
-                   utility_tree.set_value(period{k}, u{k});
+                   mu_1 = (u.^(1.0 - obj.r)) * next_term * (cons_tree.last.^(obj.r - 1.0));                  
+                   u = u + ((final_cons_eps + period_cons_eps(end) + node_cons_eps.last) * mu_1)';                 
+                   u = u + (period_cons_eps(j+1) + node_cons_eps.tree(period))' .* mu_0;                   
+                   utility_tree = utility_tree.set_value(period, u');
                else
-                   [mu_0, mu_1, mu_2] = obj.period_marginal_utility(mu_0, mu_1, m, period{k}, utility_tree, cons_tree, ce_tree);                                   
-                   u{k} = u{k} + ((period_cons_eps(i+1) + node_cons_eps.tree(period{k})) .* mu_0)';              
-                   utility_tree.set_value(period{k}, u{k}');            
+                   [mu_0, mu_1, mu_2] = obj.period_marginal_utility(mu_0, mu_1, m, period, utility_tree, cons_tree, ce_tree);                                   
+                   u = u + ((period_cons_eps(j+1) + node_cons_eps.tree(period)) .* mu_0)';              
+                   utility_tree  = utility_tree.set_value(period, u');            
                end
-               i = i-1;              
-          end
+               j = j - 1;   
+               
+            end
+           
+           
+           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+           
           
           if return_trees
                r1_utility = utilty_tree;
