@@ -13,15 +13,10 @@ classdef BigStorageTree < BaseStorageTree
     properties
          first_period_intervals
          subinterval_len         
-         last = []
+         last
          nodes
-         tree  = containers.Map('KeyType','int32', 'ValueType','any')
+         tree
     end   
-    
-    
-    properties(Access = private)
-        tree_p  = containers.Map('KeyType','int32', 'ValueType','any')
-    end
     
     
     methods
@@ -30,7 +25,8 @@ classdef BigStorageTree < BaseStorageTree
             obj@BaseStorageTree(array);
             obj.subinterval_len = subinterval_len;
             obj.periods = 0:obj.subinterval_len:(obj.decision_times(end));
-            obj.init_tree()
+            obj.tree = containers.Map('KeyType','int32', 'ValueType','any');
+            obj = obj.init_tree();
         end
        
         
@@ -38,17 +34,7 @@ classdef BigStorageTree < BaseStorageTree
             r = (obj.decision_times(2) - obj.decision_times(1))/obj.subinterval_len;
         end
         
-        
-        function r = get.tree(obj)
-              r = obj.tree_p;
-        end
-        
-        
-        function obj = set.tree_p(obj, value)
-            obj.tree_p = value;            
-        end
-        
-
+      
         function r = get_next_period_array(obj, period)
             if period + obj.subinterval_len <= obj.decision_times(end)
                 r = obj.tree(period + obj.subinterval_len);
@@ -62,11 +48,11 @@ classdef BigStorageTree < BaseStorageTree
             if ismember(period, obj.periods) == 0
                 error('Not a Valid Period!');              
             end
-            if size(values) ~= size(obj.tree_p(period))
-                 error('Shape %s and Shape %s are not aligned.', size(values), size(obj.tree_p(period)));
+            if size(values) ~= size(obj.tree(period))
+                error('Shape %s and Shape %s are not aligned.', size(values), size(obj.tree(period)));
             end
             % Need refinement, but it works now          
-            obj.tree_p(period) = values;
+            obj.tree(period) = values;
         end
 
                 
@@ -199,11 +185,10 @@ classdef BigStorageTree < BaseStorageTree
 %     end
   
     methods (Access = private)      
-        function init_tree(obj)
+        function obj = init_tree(obj)
             i = 0;
             for key = 1:length(obj.periods)
-                obj.tree_p(obj.periods(key)) = zeros(2^i, 1); %every value is one row vector
-                %obj.tree(obj.periods(key)) = zeros(2^i, 1);
+                obj.tree(obj.periods(key)) = zeros(2^i, 1); %every value is one row vector
                 if ismember(obj.periods(key), obj.information_times) == 1
                     i = i + 1;
                 end
