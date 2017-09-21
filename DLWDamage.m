@@ -189,6 +189,7 @@ classdef DLWDamage < Damage
             if obj.d_import_flag == 0
                 fprintf('Importing stored damage simulation...');
                 obj = obj.import_damages();
+                fprintf('Finished importing.')
             end
                   
             obj = obj.recombine_nodes();            
@@ -411,7 +412,7 @@ classdef DLWDamage < Damage
 % 		float
 % 			average mitigation
             
-            if nargin == 3 || isempty(period)
+            if nargin < 4 || isempty(period)
                 period = NaN;
             end
 
@@ -419,20 +420,20 @@ classdef DLWDamage < Damage
                 r = 0;
             elseif isempty(period)
                 period = obj.tree.get_period(node);                
+            else
+            
+                state = obj.tree.get_state(node);
+                path = obj.tree.get_path(node);
+                new_m = m(path(1:end-1)+1); % mitigation on the path until this node
+
+                period_len = obj.tree.decision_times(2:period+1) - obj.tree.decision_times(1:period);
+                bau_emissions = obj.bau.emission_by_decisions(1:period); % emission levels at each decision point            
+                total_emission = sum(bau_emissions .* period_len); % total emission: sum of emissions during each period                       
+                tmp = bau_emissions .* period_len;
+
+                ave_mitigation = sum(new_m .* tmp);
+                r = ave_mitigation / total_emission;
             end
-            
-            state = obj.tree.get_state(node);
-            path = obj.tree.get_path(node);
-            new_m = m(path(1:end-1)+1); % mitigation on the path until this node
-            
-            period_len = obj.tree.decision_times(2:period+1) - obj.tree.decision_times(1:period);
-            bau_emissions = obj.bau.emission_by_decisions(1:period); % emission levels at each decision point            
-            total_emission = sum(bau_emissions .* period_len); % total emission: sum of emissions during each period                       
-            tmp = bau_emissions .* period_len;
-   
-            ave_mitigation = sum(new_m .* tmp);
-            r = ave_mitigation / total_emission;
-            
         end
         
         
@@ -450,7 +451,7 @@ classdef DLWDamage < Damage
 % 		ndarray
 % 			average mitigations
             
-            nodes = obj.tree.get_num_nodes_period(period); % number of nodes for a given period
+            nodes = obj.tree.get_num_nodes_period(period); % number of nodes for a given period            
             ave_mitigation = zeros(1, nodes);
             for i = 1:nodes
                 node = obj.tree.get_node(period, i-1);                
@@ -570,9 +571,11 @@ classdef DLWDamage < Damage
             if isnan(obj.cum_forcings)
                 obj = obj.forcing_init();
             end
+            
             if node == 0
                 r = 0.0;
-            end
+            else
+                           
             
             period = obj.tree.get_period(node);
             if period == 0
@@ -584,13 +587,13 @@ classdef DLWDamage < Damage
             forcingobj = Forcing();
             rarray = forcingobj.forcing_and_ghg_at_node(m, node, obj.tree, obj.bau, obj.subinterval_len, 'both');
             forcing = rarray(1); 
-            %forcing
+
             ghg_level = rarray(2);
-            %ghg_level
+
             [obj, force_mitigation] = obj.forcing_based_mitigation(forcing, period);
-            %force_mitigation
+
             ghg_extension = 1.0 / (1 + exp(0.05 * (ghg_level-200)));
-            %ghg_extension
+   
             
             rarray = obj.tree.reachable_end_state(node);
             worst_end_state = rarray(1);
@@ -600,12 +603,31 @@ classdef DLWDamage < Damage
             
             % new damage formulas 
             if force_mitigation < obj.emit_pct(2)
-                damage = sum( probs * ( obj.damage_coefs(2, 2, period, worst_end_state+1:best_end_state+1) * force_mitigation...
-                    + obj.damage_coefs(2, 3, period, worst_end_state+1:best_end_state+1) ) );                                       
+                             
+                vec_to_sum = zeros(1, best_end_state - worst_end_state + 1);
+                for it = 1 : (best_end_state - worst_end_state + 1)
+                    vec_to_sum(it) = probs(it) .* ( obj.damage_coefs(2, 2, period, worst_end_state + it) .* force_mitigation + ...
+                        + obj.damage_coefs(2, 3, period, worst_end_state + it ) );
+                end
+                
+                damage = sum(vec_to_sum);
+                
+%                 damage = sum( probs .* ( obj.damage_coefs(2, 2, period, worst_end_state+1:best_end_state+1) .* force_mitigation...
+%                     + obj.damage_coefs(2, 3, period, worst_end_state+1:best_end_state+1) ) );
+                                               
             elseif force_mitigation < obj.emit_pct(1)
-                damage = sum( prob * (obj.damage_coefs(1, 1, period, worst_end_state+1 : best_end_state+1) * force_mitigation^2 ...
-                            + obj.damage_coefs(1, 2, period, worst_end_state+1 : best_end_state+1) * force_mitigation ...
-                            + obj.damage_coefs(1, 3, p, worst_end_state+1 : best_end_state+1)));
+                
+                vec_to_sum = zeros(1, best_end_state - worst_end_state + 1);
+                for it = 1 : (best_end_state - worst_end_state + 1)
+                    vec_to_sum(it) = probs(it) .* ( obj.damage_coefs(1, 1, period, worst_end_state + it) .* force_mitigation.^2 ...
+                            + obj.damage_coefs(1, 2, period, worst_end_state + it) .* force_mitigation ...
+                            + obj.damage_coefs(1, 3, p, worst_end_state + it));
+                end
+                
+                damage = sum(vec_to_sum);
+%                 damage = sum( prob * (obj.damage_coefs(1, 1, period, worst_end_state+1 : best_end_state+1) * force_mitigation^2 ...
+%                             + obj.damage_coefs(1, 2, period, worst_end_state+1 : best_end_state+1) * force_mitigation ...
+%                             + obj.damage_coefs(1, 3, p, worst_end_state+1 : best_end_state+1)));
             else
                 damage = 0.0;  
                 i = 0;
@@ -629,6 +651,7 @@ classdef DLWDamage < Damage
             end
             %damage
             r = (damage / sum(probs)) + ghg_extension;
+            end
         end
              
         
