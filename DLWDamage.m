@@ -254,7 +254,7 @@ classdef DLWDamage < Damage
             %fileID = fopen(file_name);
             
             try
-                d_fromcsv = dlmread('simulated_damages.csv',';');
+                d_fromcsv = csvread('simulated_damages.csv');
             catch
                 message = ferror(fileID);
                 error(message);
