@@ -150,7 +150,7 @@ classdef EZUtility
            
            periods = fliplr(utility_tree.periods);                     
            
-           fprintf('Setting Utility Value...');
+           %fprintf('Setting Utility Value...\n');
            for i= 2:length(periods)              
                 period = periods(i);
                 damage_period = utility_tree.between_decision_times(period);
@@ -380,7 +380,7 @@ classdef EZUtility
                     
            periods = fliplr(utility_tree.periods);                     
            
-           fprintf('Setting Utility Value...');
+           %fprintf('Setting Utility Value...');
            
            j = length(utility_tree.tree) - 2;
            

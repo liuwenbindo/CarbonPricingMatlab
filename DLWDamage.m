@@ -187,9 +187,9 @@ classdef DLWDamage < Damage
         % Create the interpolation coefficients used in `damage_function`.
         
             if obj.d_import_flag == 0
-                fprintf('Importing stored damage simulation...');
+                %fprintf('Importing stored damage simulation...\n');
                 obj = obj.import_damages();
-                fprintf('Finished importing.')
+                %fprintf('Finished importing.\n')
             end
                   
             obj = obj.recombine_nodes();            
@@ -254,7 +254,7 @@ classdef DLWDamage < Damage
             %fileID = fopen(file_name);
             
             try
-                d_fromcsv = csvread('simulated_damages.csv');
+                d_fromcsv = dlmread('simulated_damages.csv',';');
             catch
                 message = ferror(fileID);
                 error(message);
