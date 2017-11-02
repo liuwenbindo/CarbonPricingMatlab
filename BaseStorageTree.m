@@ -12,7 +12,6 @@ classdef (Abstract) BaseStorageTree
         %Python code for metaclass: __metaclass__ = ABCMeta
         %baseStorageMeta is meta.class object in MATLAB
         baseStorageMeta = ?BaseStorageTree;
-        tree_p = containers.Map('KeyType','int32', 'ValueType','any')
     end
     
     properties
