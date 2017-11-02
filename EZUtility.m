@@ -66,8 +66,9 @@ classdef EZUtility
            
            % Set value for cons_tree.last_period
            period_consumption = obj.potential_cons(end) * (1.0 - period_damage);
-           period_consumption(period_consumption <= 0) = 1e-18;           
+           period_consumption(period_consumption <= 0) = 1e-18;
            cons_tree = cons_tree.set_value(cons_tree.last_period, period_consumption');            
+
            
            % Set value for utility_tree.last_period
            utilivalue = (1.0 - obj.b)^(1.0 / obj.r) * cons_tree.last * continuation;          
@@ -155,7 +156,6 @@ classdef EZUtility
                 period = periods(i);
                 damage_period = utility_tree.between_decision_times(period);
                 cert_equiv = obj.certain_equivalence(period, damage_period, utility_tree);              
-                
                 if utility_tree.is_decision_period( period + obj.period_len )
                     
                     damage_nodes = obj.tree.get_nodes_in_period(damage_period);
@@ -163,6 +163,7 @@ classdef EZUtility
                     period_ave_mitigation = obj.damage.average_mitigation(m, damage_period);                    
                     period_cost = obj.cost.cost(damage_period, period_mitigation, period_ave_mitigation);
                     [obj.damage, period_damage] = obj.damage.damage_function(m, damage_period);
+                    
                     
                     indexbelow = int32(cost_tree.index_below(period + obj.period_len));
                     cost_tree = cost_tree.set_value(indexbelow, period_cost');  
@@ -269,11 +270,7 @@ classdef EZUtility
            [utility_tree, cons_tree, cost_tree] = obj.end_period_utility(m, utility_tree, cons_tree, cost_tree);
            
            [utility_tree, ~, ~] = obj.utility_generator(m, utility_tree, cons_tree, cost_tree, ce_tree);
-             
-%            for k = 1:length(u)
-%                utility_tree = utility_tree.set_value(period{k}, (u{k})');
-%            end         
-           
+                              
            if return_trees
                r1_utility = utilty_tree;
                r2_cons = cons_tree;

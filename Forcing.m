@@ -82,7 +82,7 @@ classdef Forcing
                 end
             end
             
-            period = tree.get_period(node);
+            period = tree.get_period(node);    
             path = tree.get_path(node);
             
             period_lengths = tree.decision_times(2:period+1) - tree.decision_times(1:period);
@@ -92,15 +92,16 @@ classdef Forcing
             cum_forcing = cls.forcing_start;
             ghg_level = bau.ghg_start;
             
-            for p  = 1:period
+            for p = 1:period
                 start_emission = (1.0 - m(path(p)+1)) * bau.emission_by_decisions(p);
+                         
                 if p < tree.num_periods
-                    end_emission = (1.0 - m(path(p) + 1)) * bau.emission_by_decisions(p+1);
-                    
+                    end_emission = (1.0 - m(path(p)+1)) * bau.emission_by_decisions(p+1);
                 else
                     end_emission = start_emission;
                 end
-                increment = round(increments(p));
+                
+                increment = floor(increments(p));
                 for i = 1:increment
                      p_co2_emission = start_emission + (i-1) * (end_emission-start_emission) / increment;
                      p_co2 = 0.71 * p_co2_emission;
@@ -109,18 +110,19 @@ classdef Forcing
                      lsc = cls.lsc_p1 + cls.lsc_p2 * cum_sink;
                      absorbtion = 0.5 * cls.absorbtion_p1 * sign(ghg_level - lsc) * abs(ghg_level-lsc)^cls.absorbtion_p2;
                      cum_sink = cum_sink + absorbtion;
+                     
                      cum_forcing = cum_forcing + cls.forcing_p1 * sign(ghg_level-cls.forcing_p3) * abs(ghg_level-cls.forcing_p3)^cls.forcing_p2;
                      ghg_level = ghg_level + add_p_ppm - absorbtion;                    
-                end
-                
-                if strcmp(returning, 'forcing')
-                    r = cum_forcing;
-                elseif strcmp(returning, 'ghg')
-                    r = ghg_level;
-                else
-                    r = [cum_forcing, ghg_level];
-                end                
-            end            
+                end          
+            end
+            
+            if strcmp(returning, 'forcing')
+                r = cum_forcing;
+            elseif strcmp(returning, 'ghg')
+                r = ghg_level;
+            else
+                r = [cum_forcing, ghg_level];
+            end                
         end
         
         

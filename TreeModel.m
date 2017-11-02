@@ -140,13 +140,15 @@ classdef TreeModel
             if child == 0
                 r = 0;
             end
-            if child > obj.num_decision_nodes
-                r = child - num_final_states; %Q: Why?
-            end
-            if rem(child, 2) == 0
+%             if child > obj.num_decision_nodes
+%                 r = child - obj.num_final_states; %Q: Why?
+%             end
+            if rem(child, 2) == 0 && child < obj.num_decision_nodes
                 r = (child - 2) / 2;
-            else
+            elseif child < obj.num_decision_nodes
                 r = (child - 1)/2;
+            elseif child >= obj.num_decision_nodes
+                r = child - obj.num_final_states;
             end
         end
         
@@ -177,10 +179,11 @@ classdef TreeModel
             if period >= obj.num_periods
                 temp(1) = node - obj.num_decision_nodes;
                 temp(2) = temp(1);
-            end        
-            k = (obj.num_final_states)/2^period;
-            temp(1) = k*(state);
-            temp(2) = k*(state + 1) - 1;
+            else
+                k = (obj.num_final_states)/(2^period);            
+                temp(1) = k*(state);
+                temp(2) = k*(state + 1) - 1;
+            end                    
             r = temp;
         end
     end
