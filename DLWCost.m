@@ -111,24 +111,24 @@ classdef DLWCost < Cost
             
             % Period as input in Python code.
             years = obj.tree.decision_times(period + 1);
-            tech_term = (1.0 - ((obj.tech_const + obj.tech_scale * ave_mitigation)/100))^years;
+            tech_term = (1.0 - ((obj.tech_const + obj.tech_scale * ave_mitigation)/100)).^years;
             % cbs is a power function of mitigation
-            cbs = obj.g * (mitigation^obj.a);
+            cbs = obj.g * (mitigation.^obj.a);
             % check if backstop technology is implemented
             bool_arr = int32(mitigation < obj.cbs_level);
             
             % cost of traditional mitigation
             if all(bool_arr)
-                r = (cbs * tech_term) / obj.cons_per_ton;
+                r = (cbs .* tech_term) / obj.cons_per_ton;
             % cost with backstop technology
             else
                 %cost of normal mitigation
-                base_cbs = obj.g * obj.cbs_level^(obj.a);
+                base_cbs = obj.g * obj.cbs_level.^(obj.a);
                 bool_arr2 = int32(mitigation > obj.cbs_level);
-                extension = ((mitigation - obj.cbs_level) * obj.max_price...
-                             - obj.cbs_b * mitigation * (obj.cbs_k/mitigation)^(1/obj.cbs_b) / (obj.cbs_b-1.0)...
-                             + obj.cbs_b*obj.cbs_level * (obj.cbs_k/obj.cbs_level)^(1/obj.cbs_b) / (obj.cbs_b-1.0));
-                r = (cbs * bool_arr + (base_cbs + extension)*bool_arr2) * tech_term / obj.cons_per_ton;
+                extension = ((mitigation - obj.cbs_level) .* obj.max_price...
+                             - obj.cbs_b .* mitigation .* (obj.cbs_k./mitigation).^(1/obj.cbs_b) ./ (obj.cbs_b-1.0)...
+                             + obj.cbs_b*obj.cbs_level .* (obj.cbs_k./obj.cbs_level).^(1/obj.cbs_b) ./ (obj.cbs_b-1.0));
+                r = (cbs .* double(bool_arr) + (base_cbs + extension) .* double(bool_arr2)) .* tech_term ./ obj.cons_per_ton;
             end
         end
 
