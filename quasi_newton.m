@@ -23,6 +23,7 @@ itbnd=500*1e20;
 n=length(x0);
 H=eye(n);
 x=x0;
+g = cons(zeros(size(x)),x);
 [f,g]=feval(myfun,x);% x: ROW, g: ROW
 g = g'; % g: COL
 fcount=1;
@@ -30,7 +31,7 @@ gcount=1;
 iter=0;
 grads = 0;
 
-while(norm(g)>tol && iter<itbnd && fcount<1e3 ) % changed fcount < 1e3 to 1e2 due to the computing time 
+while(norm(g)>tol && iter<itbnd && fcount<1e5 ) % changed fcount < 1e3 to 1e2 due to the computing time 
     p=-H*g; % H: n*n, g: n*1 ==> p: n*1
     if (g'*p>0) % (1*n) * (n*1)
         H=eye(n);
@@ -39,8 +40,9 @@ while(norm(g)>tol && iter<itbnd && fcount<1e3 ) % changed fcount < 1e3 to 1e2 du
     [alpha,fc,gc]=line_search(myfun,f,g,x,p');
     x=x+alpha*p';
     s=alpha*p;
+    g_new = cons(zeros(size(x)),x);
     [f,g_new]=feval(myfun,x);
-    
+   
     fcount=fcount+fc+1;
     gcount=gcount+gc+1;
     y=g_new-g';
