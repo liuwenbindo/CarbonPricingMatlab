@@ -30,6 +30,13 @@ classdef Forcing
         forcing_p1 = 0.13173;
         forcing_p2 = 0.607773;
         forcing_p3 = 315.3785;
+        
+        % 11.10 Update
+        forcing_log_p1 = 5.35067129
+        forcing_log_p2 = log(278.06340701)
+        forcing_flag = 'log' % log or power
+        % forcing_flag = 'power' % log or power
+        
         absorbtion_p1 = 0.94835;
         absorbtion_p2 = 0.741547;
         lsc_p1 = 285.6268;
@@ -111,7 +118,22 @@ classdef Forcing
                      absorbtion = 0.5 * cls.absorbtion_p1 * sign(ghg_level - lsc) * abs(ghg_level-lsc)^cls.absorbtion_p2;
                      cum_sink = cum_sink + absorbtion;
                      
-                     cum_forcing = cum_forcing + cls.forcing_p1 * sign(ghg_level-cls.forcing_p3) * abs(ghg_level-cls.forcing_p3)^cls.forcing_p2;
+                     
+                     if strcmp(cls.forcing_flag, 'log')
+                         if ghg_level > 260
+                            log_forcing = cls.forcing_log_p1 * (log(ghg_level)-cls.forcing_log_p2);
+                         else
+                            b_log = cls.forcing_log_p1 * (log(260)-cls.forcing_log_p2);
+                            m_log = cls.forcing_log_p1 / 260;
+                            log_forcing = b_log + m_log * (ghg_level-260);
+                         end
+                         cum_forcing = cum_forcing + log_forcing;
+                     elseif strcmp(cls.forcing_flag, 'power')
+                        power_forcing = cls.forcing_p1 * sign(ghg_level-cls.forcing_p3) * abs(ghg_level-cls.forcing_p3).^cls.forcing_p2;
+                        cum_forcing = cum_forcing + power_forcing;
+                     end
+                     
+                     % cum_forcing = cum_forcing + cls.forcing_p1 * sign(ghg_level-cls.forcing_p3) * abs(ghg_level-cls.forcing_p3)^cls.forcing_p2;
                      ghg_level = ghg_level + add_p_ppm - absorbtion;                    
                 end          
             end
