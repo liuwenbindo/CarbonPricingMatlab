@@ -598,7 +598,7 @@ classdef DLWDamage < Damage
             % new damage formulas 
             if force_mitigation < obj.emit_pct(2)
                              
-                vec_to_sum = cons(zeros(1, best_end_state - worst_end_state + 1));
+                vec_to_sum = cons(zeros(1, best_end_state - worst_end_state + 1),m);
                 for it = 1 : (best_end_state - worst_end_state + 1)
                     vec_to_sum(it) = probs(it) .* ( obj.damage_coefs(2, 2, period, worst_end_state + it) .* force_mitigation + ...
                         + obj.damage_coefs(2, 3, period, worst_end_state + it ) );
